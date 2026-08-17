@@ -220,6 +220,9 @@ input[type="range"] { width: 100%; accent-color: var(--c1); }
   top: 10px; left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100% - 24px);
   gap: 6px;
   background: var(--surface-1);
   padding: 5px;
@@ -304,6 +307,9 @@ table.data thead th {
 table.data tbody tr + tr td { border-top: 1px solid var(--grid); }
 table.data td.num, table.data th.num { font-variant-numeric: tabular-nums; }
 table.data tfoot td { border-top: 2px solid var(--baseline); font-weight: 650; }
+/* Credits reduce cash needed; the minus sign carries the meaning, colour only
+   reinforces it. */
+table.data td.credit, table.data td.credit + td { color: var(--good); }
 .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
 
 .note {

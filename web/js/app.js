@@ -167,13 +167,29 @@
       dwellingPct: (+$('dwellPct').value || 85) / 100,
       appreciationPct: +$('appr').value || 0,
       insuranceInflationPct: +$('insInf').value || 0,
+      closing: readClosing(),
     };
+  }
+
+  /** Itemized closing inputs, read straight off their data-fee attributes. */
+  function readClosing() {
+    const c = {
+      closingMonth: +$('closeMonth').value || 6,
+      sellerCredit: +$('sellerCredit').value || 0,
+    };
+    for (const el of document.querySelectorAll('[data-fee]')) {
+      c[el.dataset.fee] = +el.value || 0;
+    }
+    return c;
   }
 
   /** The value the choropleth encodes, per the active mode. */
   function metric(zoneProps, input) {
     if (state.mode === 'afford') {
       return Engine.affordablePrice(zoneProps, input, mkt(), +$('budget').value || 0);
+    }
+    if (state.mode === 'cash') {
+      return Engine.cashToClose(zoneProps, input, mkt()).total;
     }
     const m = Engine.monthly(zoneProps, input, mkt());
     return state.mode === 'rate' ? m.effectiveTaxRate : m.total;
@@ -251,6 +267,7 @@
   function fmtMetric(v) {
     if (state.mode === 'rate') return pct(v, 3);
     if (state.mode === 'afford') return usd(Math.round(v / 1000) * 1000);
+    if (state.mode === 'cash') return usd(Math.round(v / 100) * 100);
     return usd(v);
   }
 
@@ -261,6 +278,7 @@
       monthly: 'Total monthly payment',
       rate: 'Effective tax rate',
       afford: 'Affordable home price',
+      cash: 'Cash needed at closing',
     }[state.mode];
     $('legLo').textContent = fmtMetric(lo);
     $('legHi').textContent = fmtMetric(hi);
@@ -311,6 +329,7 @@
     const z = zones[0];
     const m = Engine.monthly(z, input, mkt());
     const proj = Engine.project(z, input, mkt(), 10);
+    const cash = Engine.cashToClose(z, input, mkt());
 
     let html = '';
 
@@ -338,6 +357,8 @@
       tile('Property tax', usd(m.taxAnnual, 0) + '/yr', usd(m.taxAnnual / 12) + '/mo · effective ' + pct(m.effectiveTaxRate, 3)) +
       tile('Insurance', usd(m.insuranceAnnual, 0) + '/yr', usd(m.insuranceAnnual / 12) + '/mo · estimate') +
       tile('Principal & interest', usd(m.loan.monthlyPI), `${m.loan.rate.toFixed(2)}% · ${input.term}-yr · ${usd(m.loan.principal)} loan`) +
+      tile('Cash to close', usd(cash.total, 0),
+           `${cash.pctOfPrice.toFixed(1)}% of price · ${usd(cash.total - cash.downPayment)} beyond the down payment`) +
       tile('10-year total', usd(proj[9].cumulative, 0), 'year 10 runs ' + usd(proj[9].monthly) + '/mo') +
       '</div>';
 
@@ -413,6 +434,29 @@
     html += `</tbody></table><div class="hint" style="margin-top:6px;color:var(--muted)">
       Appraisal growth ${input.appreciationPct}%/yr${input.homestead ? ', capped at 10% by the homestead cap' : ' (uncapped without a homestead)'};
       insurance ${input.insuranceInflationPct}%/yr.</div></div>`;
+
+    // Cash to close — one-time, deliberately separate from the monthly figure.
+    const cashRow = (label, amt, cls) =>
+      `<tr><td${cls ? ` class="${cls}"` : ''}>${esc(label)}</td>` +
+      `<td class="num">${amt < 0 ? '−' : ''}${usd(Math.abs(amt))}</td></tr>`;
+
+    html += '<div><h3>Cash to close</h3><table class="data"><tbody>';
+    html += cashRow('Down payment', cash.downPayment);
+    for (const f of cash.fees) if (f.amount > 0) html += cashRow(f.name, f.amount);
+    for (const p of cash.prepaids) if (p.amount > 0) html += cashRow(p.name, p.amount);
+    for (const c of cash.credits) if (c.amount > 0) html += cashRow(c.name, -c.amount, 'credit');
+    html += `</tbody><tfoot><tr><td>Cash needed</td>
+      <td class="num">${usd(cash.total)}</td></tr></tfoot></table>`;
+    if (cash.financedFee > 0) {
+      html += `<div class="hint" style="margin-top:6px;color:var(--muted)">
+        Plus ${usd(cash.financedFee)} of upfront mortgage insurance or funding fee,
+        financed into the loan rather than paid at the table.</div>`;
+    }
+    html += `<div class="hint" style="margin-top:6px;color:var(--muted)">
+      Assumes a mid-month close. The tax escrow deposit and the seller's proration
+      credit both grow with the closing month and cancel out, leaving roughly
+      2.5 months of tax whichever month you close. Estimates — your lender's Loan
+      Estimate governs.</div></div>`;
 
     html += '</div>';
     el.innerHTML = html;

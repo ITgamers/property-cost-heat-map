@@ -110,6 +110,80 @@
     </div>
 
     <div class="group">
+      <h2>Closing</h2>
+      <div class="field">
+        <label for="closeMonth">Expected closing month</label>
+        <select id="closeMonth">
+          <option value="1">January</option><option value="2">February</option>
+          <option value="3">March</option><option value="4">April</option>
+          <option value="5">May</option><option value="6" selected>June</option>
+          <option value="7">July</option><option value="8">August</option>
+          <option value="9">September</option><option value="10">October</option>
+          <option value="11">November</option><option value="12">December</option>
+        </select>
+        <div class="hint">Texas taxes are paid in arrears, so closing later means
+          a much larger escrow deposit — and a matching seller credit. The two
+          cancel: net cash lands about 2.5 months of tax either way. Useful for
+          reading your closing disclosure, not for picking a month.</div>
+      </div>
+      <div class="field">
+        <label for="sellerCredit">Seller / builder credit ($)</label>
+        <input type="number" id="sellerCredit" value="0" min="0" step="500">
+        <div class="hint">Builders often cover closing costs if you use their
+          preferred lender. Check the rate before taking it.</div>
+      </div>
+
+      <details class="adv" id="feeGroup">
+        <summary>Itemized fees</summary>
+        <p class="hint">Pre-filled with Texas norms. Zero out anything the
+          seller covers.</p>
+        <div class="row">
+          <div class="field">
+            <label for="f_orig">Origination (% of loan)</label>
+            <input type="number" id="f_orig" data-fee="originationPct" value="1" step="0.125" min="0">
+          </div>
+          <div class="field">
+            <label for="f_title">Lender's title ($)</label>
+            <input type="number" id="f_title" data-fee="lenderTitle" value="325" step="25" min="0">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="f_appr">Appraisal ($)</label>
+            <input type="number" id="f_appr" data-fee="appraisal" value="600" step="50" min="0">
+          </div>
+          <div class="field">
+            <label for="f_survey">Survey ($)</label>
+            <input type="number" id="f_survey" data-fee="survey" value="550" step="50" min="0">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="f_escrow">Escrow / settlement ($)</label>
+            <input type="number" id="f_escrow" data-fee="escrowFee" value="650" step="50" min="0">
+          </div>
+          <div class="field">
+            <label for="f_rec">Recording & misc ($)</label>
+            <input type="number" id="f_rec" data-fee="recording" value="250" step="25" min="0">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="f_hoa">HOA transfer ($)</label>
+            <input type="number" id="f_hoa" data-fee="hoaTransfer" value="0" step="50" min="0">
+          </div>
+          <div class="field">
+            <label for="f_agent">Buyer's agent (%)</label>
+            <input type="number" id="f_agent" data-fee="buyerAgentPct" value="0" step="0.25" min="0">
+          </div>
+        </div>
+        <p class="hint">Since Aug 2024 buyer-agent pay is negotiated per deal and
+          no longer shown in the MLS. Sellers still commonly cover it, so this
+          starts at 0 — raise it to test paying your own.</p>
+      </details>
+    </div>
+
+    <div class="group">
       <h2>Insurance</h2>
       <div class="field">
         <label for="insOverride">Annual premium ($)</label>
@@ -213,6 +287,7 @@
         <button type="button" data-mode="monthly" aria-pressed="true">Total monthly</button>
         <button type="button" data-mode="rate" aria-pressed="false">Effective tax rate</button>
         <button type="button" data-mode="afford" aria-pressed="false">Affordability</button>
+        <button type="button" data-mode="cash" aria-pressed="false">Cash to close</button>
         <span class="div" aria-hidden="true"></span>
         <button type="button" id="heatBtn" aria-pressed="true"
                 title="Show or hide the shading (H)">Heat map</button>

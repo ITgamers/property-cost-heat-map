@@ -230,6 +230,91 @@
     };
   }
 
+  /* ---------------------------------------------------------------------
+   * Cash to close
+   * ------------------------------------------------------------------ */
+
+  /**
+   * One-time cash needed at the closing table. Deliberately kept out of the
+   * monthly figure — blending a one-off cost into a recurring one is the
+   * classic way these tools mislead.
+   *
+   * The part worth modelling carefully is escrow. Texas property taxes are
+   * paid in arrears, assessed 1 January and due the following 31 January, so
+   * two closing-month effects run in opposite directions:
+   *
+   *   - The lender must hold the full year's tax by the due date, so a late
+   *     closing leaves fewer monthly payments to get there and demands a
+   *     much larger deposit up front.
+   *   - The seller owes tax for the part of the year they owned the home, and
+   *     since nothing has been paid yet, that arrives as a credit to the buyer.
+   *
+   * They largely cancel. Modelling only the first would badly overstate a
+   * November closing, which is exactly the trap.
+   */
+  function cashToClose(zone, input, market) {
+    const rules = market.exemptions[input.state || 'TX'];
+    const price = Math.max(0, input.price);
+    const c = input.closing || {};
+    const loan = loanDetail(price, input, market);
+    const taxAnnual = propertyTax(zone, input, rules).total;
+    const insAnnual = insurance(zone, input, market);
+
+    const fees = [
+      { name: 'Loan origination', amount: loan.principal * (c.originationPct || 0) / 100 },
+      { name: "Lender's title policy", amount: c.lenderTitle || 0 },
+      { name: 'Appraisal', amount: c.appraisal || 0 },
+      { name: 'Survey', amount: c.survey || 0 },
+      { name: 'Escrow / settlement', amount: c.escrowFee || 0 },
+      { name: 'Recording & misc', amount: c.recording || 0 },
+      { name: 'HOA transfer', amount: c.hoaTransfer || 0 },
+    ];
+    if (c.buyerAgentPct > 0) {
+      fees.push({ name: "Buyer's agent", amount: price * c.buyerAgentPct / 100 });
+    }
+    const feesTotal = fees.reduce((s, f) => s + f.amount, 0);
+
+    // --- Escrow and prepaids -------------------------------------------
+    const month = clamp(c.closingMonth || 6, 1, 12);   // 1 = January
+    const CUSHION = 2;                                  // months, RESPA maximum
+    // First payment falls on the 1st of the second month after closing; count
+    // the payments landing before the 31 January due date (month 13).
+    const paymentsBeforeDue = Math.max(0, 12 - month);
+    const taxEscrowMonths = Math.max(0, 12 - paymentsBeforeDue + CUSHION);
+    const taxDeposit = (taxAnnual / 12) * taxEscrowMonths;
+    const insDeposit = (insAnnual / 12) * CUSHION;
+    // Assume a mid-month closing: roughly half a month of interest is prepaid.
+    const prepaidInterest = loan.principal * (loan.rate / 100 / 365) * 15;
+
+    const prepaids = [
+      { name: 'Homeowners insurance, year 1', amount: insAnnual },
+      { name: `Insurance escrow (${CUSHION} mo)`, amount: insDeposit },
+      { name: `Tax escrow (${taxEscrowMonths.toFixed(0)} mo)`, amount: taxDeposit },
+      { name: 'Prepaid interest (~15 days)', amount: prepaidInterest },
+    ];
+    const prepaidsTotal = prepaids.reduce((s, p) => s + p.amount, 0);
+
+    // --- Credits --------------------------------------------------------
+    // Seller owes their share of the unpaid year, prorated to a mid-month close.
+    const sellerTaxProration = taxAnnual * Math.max(0, month - 0.5) / 12;
+    const credits = [
+      { name: 'Seller tax proration', amount: sellerTaxProration },
+      { name: 'Seller / builder credit', amount: c.sellerCredit || 0 },
+    ];
+    const creditsTotal = credits.reduce((s, x) => s + x.amount, 0);
+
+    const total = loan.down + feesTotal + prepaidsTotal - creditsTotal;
+    return {
+      downPayment: loan.down,
+      fees, feesTotal,
+      prepaids, prepaidsTotal,
+      credits, creditsTotal,
+      financedFee: loan.financedFee,
+      total: Math.max(0, total),
+      pctOfPrice: price > 0 ? (Math.max(0, total) / price) * 100 : 0,
+    };
+  }
+
   /**
    * Invert monthly() — the largest price whose all-in payment fits a budget.
    *
@@ -300,7 +385,7 @@
   }
 
   global.Engine = {
-    propertyTax, loanDetail, insurance, monthly,
+    propertyTax, loanDetail, insurance, monthly, cashToClose,
     affordablePrice, project, amortize, noteRate,
   };
 })(window);

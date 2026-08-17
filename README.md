@@ -58,7 +58,7 @@ exactly the variation you're trying to see.
 Across the seven-county metro the combined rate runs **1.1501%** (Fredericksburg
 ISD, unincorporated Kendall County) to **2.6434%** (Poteet ISD, City of Poteet).
 
-## Three map modes
+## Four map modes
 
 - **Total monthly** — full PITI + HOA + special districts, the number that hits
   your account.
@@ -66,6 +66,53 @@ ISD, unincorporated Kendall County) to **2.6434%** (Poteet ISD, City of Poteet).
   exemptions. Independent of price, so it's the cleanest jurisdiction comparison.
 - **Affordability** — enter a monthly budget, see the home price it buys in each
   zone. At $3,200/month the metro spread is about **$413,000 → $463,000**.
+- **Cash to close** — the one-time cash the closing table actually needs.
+
+## Cash to close
+
+The asking price is not what it costs to buy the house. This models the
+one-time cash separately from the monthly figure — blending a one-off cost into
+a recurring one is how these tools mislead.
+
+Itemized with Texas norms, each editable: loan origination, lender's title
+policy, appraisal, survey (effectively required in Texas), escrow/settlement,
+recording, HOA transfer, and an optional buyer's-agent line. Plus the prepaid
+escrow the lender collects, computed from **that zone's** actual tax and
+insurance, minus the seller's tax proration and any builder credit.
+
+On a $340,000 home at 20% down, expect roughly **$12,000 beyond the down
+payment** — about 3.5% of the price.
+
+### The closing-month result
+
+Texas taxes are assessed 1 January, paid in arrears, and due the following
+31 January, which pulls two effects in opposite directions:
+
+- The lender must hold the full year's tax by the due date, so a later close
+  leaves fewer monthly payments to get there and demands a bigger deposit.
+- The seller owes tax for the part of the year they owned the home, and since
+  nothing has been paid yet, that arrives as a credit to you.
+
+They cancel **exactly**. The lender needs `(month + 2)/12` of the annual tax and
+the seller owes `(month − 0.5)/12`, so the net is a constant 2.5 months whenever
+you close. A January close and a November close on the same house both land at
+$79,939 — while the gross escrow line moves from $1,452 to $6,290.
+
+Worth knowing when you read a closing disclosure and the escrow line looks
+alarming. Not a reason to pick a month.
+
+### On buyer-agent fees
+
+Since August 2024 buyer-agent compensation is negotiated per deal and no longer
+advertised in the MLS. Sellers still commonly cover it, typically 1.5–2.5% as a
+concession, so the field starts at **0%** — raise it to test paying your own.
+On new construction the builder usually covers it, often conditioned on
+registering your agent on the first visit.
+
+Note that cash to close varies far less across zones than monthly cost does —
+roughly $900 on a $340,000 home, since the down payment and fixed fees dominate
+and only the escrow portion is local. Where you buy matters enormously for the
+monthly payment and barely at all for the cash you bring.
 
 Click any zone for a full breakdown; pin up to three to compare side by side.
 

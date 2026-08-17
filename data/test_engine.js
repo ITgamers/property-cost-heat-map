@@ -107,5 +107,68 @@ const mud = { ...base, specialRate: 1.0 };
 eq('Redbird-style MUD at 1.00/$100 adds',
    Engine.monthly(zone, mud, MARKET).taxAnnual - m.taxAnnual, 4000, 1);
 
-console.log(`\n${pass} passed, ${fail} failed\n`);
+/* ------------------------------------------------------------------------
+ * Cash to close
+ * --------------------------------------------------------------------- */
+console.log('\n=== Cash to close — $340,000, 20% down, June close ===\n');
+
+const closingBase = {
+  ...base,
+  price: 340000,
+  assessedValue: 340000,
+  closing: {
+    closingMonth: 6, sellerCredit: 0, originationPct: 1, lenderTitle: 325,
+    appraisal: 600, survey: 550, escrowFee: 650, recording: 250,
+    hoaTransfer: 0, buyerAgentPct: 0,
+  },
+};
+const c6 = Engine.cashToClose(zone, closingBase, MARKET);
+const tax340 = Engine.propertyTax(zone, closingBase, MARKET.exemptions.TX).total;
+const ins340 = Engine.insurance(zone, closingBase, MARKET);
+
+eq('down payment (20% of 340k)', c6.downPayment, 68000);
+eq('origination (1% of 272k loan)', c6.fees[0].amount, 2720);
+eq('fixed fees sum', c6.feesTotal - 2720, 325 + 600 + 550 + 650 + 250);
+// June close: 6 payments land before the 31 Jan due date, so the lender needs
+// 12 - 6 + 2 cushion = 8 months on deposit.
+eq('tax escrow = 8 months', c6.prepaids[2].amount, (tax340 / 12) * 8, 0.5);
+eq('insurance escrow = 2 months', c6.prepaids[1].amount, (ins340 / 12) * 2, 0.5);
+eq('year-1 insurance paid in full', c6.prepaids[0].amount, ins340, 0.5);
+eq('seller proration = 5.5 months', c6.credits[0].amount, tax340 * 5.5 / 12, 0.5);
+ok('cash exceeds down payment', c6.total > c6.downPayment,
+   `$${Math.round(c6.total).toLocaleString()} vs $68,000 down`);
+console.log(`        -> ${c6.pctOfPrice.toFixed(1)}% of price, ` +
+            `$${Math.round(c6.total - c6.downPayment).toLocaleString()} beyond the down payment`);
+
+console.log('\n=== Closing month behaves correctly ===\n');
+const at = (mo) => Engine.cashToClose(
+  zone, { ...closingBase, closing: { ...closingBase.closing, closingMonth: mo } }, MARKET);
+const jan = at(1), nov = at(11);
+ok('later close raises the tax escrow deposit',
+   nov.prepaids[2].amount > jan.prepaids[2].amount,
+   `Jan $${Math.round(jan.prepaids[2].amount)} -> Nov $${Math.round(nov.prepaids[2].amount)}`);
+ok('later close raises the seller credit',
+   nov.credits[0].amount > jan.credits[0].amount,
+   `Jan $${Math.round(jan.credits[0].amount)} -> Nov $${Math.round(nov.credits[0].amount)}`);
+ok('the two largely offset (net swing under 12% of one year of tax)',
+   Math.abs((nov.total - jan.total)) < tax340 * 0.12,
+   `net Jan $${Math.round(jan.total).toLocaleString()} vs Nov $${Math.round(nov.total).toLocaleString()}`);
+
+console.log('\n=== Credits and options ===\n');
+const credited = Engine.cashToClose(
+  zone, { ...closingBase, closing: { ...closingBase.closing, sellerCredit: 10000 } }, MARKET);
+eq('a $10,000 builder credit reduces cash 1:1', c6.total - credited.total, 10000, 0.5);
+const withAgent = Engine.cashToClose(
+  zone, { ...closingBase, closing: { ...closingBase.closing, buyerAgentPct: 2.5 } }, MARKET);
+eq('paying your own agent at 2.5%', withAgent.total - c6.total, 340000 * 0.025, 0.5);
+const vaCash = Engine.cashToClose(
+  zone, { ...closingBase, downPct: 0, loanType: 'va' }, MARKET);
+ok('VA funding fee is financed, not paid at the table', vaCash.financedFee > 0,
+   `$${Math.round(vaCash.financedFee).toLocaleString()} rolled into the loan`);
+ok('cash to close never goes negative',
+   Engine.cashToClose(zone, { ...closingBase, closing: { ...closingBase.closing, sellerCredit: 999999 } }, MARKET).total === 0);
+
+console.log(`
+${pass} passed, ${fail} failed
+`);
 process.exit(fail ? 1 : 0);
