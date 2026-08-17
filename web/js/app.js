@@ -216,6 +216,7 @@
 
     updateLegend(Math.min(...values), Math.max(...values));
     renderDetail();
+    syncLabels(input);
     syncHints(input);
   }
 
@@ -263,6 +264,20 @@
     }[state.mode];
     $('legLo').textContent = fmtMetric(lo);
     $('legHi').textContent = fmtMetric(hi);
+  }
+
+  /**
+   * Show the dollar figure beside each percentage control, so the sliders read
+   * as money rather than as arithmetic homework. Driven from refresh() rather
+   * than the slider's own handler, so changing the price updates them too.
+   */
+  function syncLabels(input) {
+    const down = input.price * input.downPct;
+    $('downLbl').textContent = `${$('down').value}% — ${usd(down)} down`;
+    $('loanLbl').textContent = usd(Math.max(0, input.price - down));
+    $('localLbl').textContent = `${$('localPct').value}%`;
+    $('dwellLbl').textContent =
+      `${$('dwellPct').value}% — ${usd(input.price * input.dwellingPct)}`;
   }
 
   function syncHints(input) {
@@ -688,14 +703,12 @@
 
     // Assumption fields are handled separately below - they must rebuild the
     // effective market before anything recomputes.
-    const labels = { down: 'downLbl', localPct: 'localLbl', dwellPct: 'dwellLbl' };
+    // refresh() repaints the percentage labels via syncLabels, so handlers here
+    // only need to trigger it.
     for (const el of document.querySelectorAll(
       'aside input:not([data-adv]), aside select'
     )) {
-      el.addEventListener('input', () => {
-        if (labels[el.id]) $(labels[el.id]).textContent = el.value + '%';
-        refresh();
-      });
+      el.addEventListener('input', refresh);
     }
 
     // Assumptions: an empty field or one matching the published default is not

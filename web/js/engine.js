@@ -192,7 +192,10 @@
     }
     const ins = market.insurance;
     const factor = ins.county_factor[zone.county] ?? 1.0;
-    const dwelling = input.assessedValue * clamp(input.dwellingPct, 0.3, 1.2);
+    // Based on purchase price, not appraised value: dwelling coverage tracks
+    // what it costs to rebuild, which follows the market rather than the
+    // appraisal district's figure. Identical whenever the two are set equal.
+    const dwelling = (input.price || input.assessedValue) * clamp(input.dwellingPct, 0.3, 1.2);
     const est = ins.state_avg_annual * (dwelling / ins.state_avg_dwelling) * factor;
     return Math.max(ins.min_annual, est);
   }
