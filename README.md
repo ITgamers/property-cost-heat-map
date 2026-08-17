@@ -152,6 +152,10 @@ filesystem.
 You can also trigger a refresh by hand from the repo's **Actions** tab
 (*Refresh data → Run workflow*), which is the no-terminal way to force one.
 
+> GitHub serves raw files through a CDN with a 5-minute cache, so immediately
+> after a refresh commit the button may still report "up to date" for a few
+> minutes. It resolves on its own.
+
 If you fork this, point the button at your own copy:
 
 ```bash
