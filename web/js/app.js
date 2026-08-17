@@ -459,7 +459,13 @@
 
     html += '<div><h3>Cash to close</h3><table class="data"><tbody>';
     html += cashRow('Down payment', cash.downPayment);
-    for (const f of cash.fees) if (f.amount > 0) html += cashRow(f.name, f.amount);
+    for (const f of cash.fees) {
+      if (f.amount > 0) html += cashRow(f.name, f.amount);
+      else if (f.waived) {
+        html += `<tr><td class="credit">${esc(f.name)}</td>
+          <td class="num credit">waived</td></tr>`;
+      }
+    }
     for (const p of cash.prepaids) if (p.amount > 0) html += cashRow(p.name, p.amount);
     for (const c of cash.credits) if (c.amount > 0) html += cashRow(c.name, -c.amount, 'credit');
     html += `</tbody><tfoot><tr><td>Cash needed</td>
@@ -468,6 +474,18 @@
       html += `<div class="hint" style="margin-top:6px;color:var(--muted)">
         Plus ${usd(cash.financedFee)} of upfront mortgage insurance or funding fee,
         financed into the loan rather than paid at the table.</div>`;
+    }
+    if (input.loanType === 'va') {
+      const cap = (mkt().va_funding_fee?.seller_concession_cap_pct ?? 4);
+      html += `<div class="note"><strong>On a VA purchase only the funding fee can
+        be financed.</strong> The loan is capped at the purchase price, so the
+        ${usd(cash.total)} above cannot be rolled in — it is paid at the table or
+        covered by someone else. The usual routes to $0 out of pocket are a seller
+        or builder credit (VA allows concessions up to ${cap}% of value, and
+        customary closing costs the seller pays don't count toward that) and a
+        lender credit in exchange for a higher rate. Enter either in
+        <em>Seller / builder credit</em>.
+        ${cash.vaNonAllowable ? ' Escrow/settlement is already excluded as a VA non-allowable fee.' : ''}</div>`;
     }
     html += `<div class="hint" style="margin-top:6px;color:var(--muted)">
       Assumes a mid-month close. The tax escrow deposit and the seller's proration

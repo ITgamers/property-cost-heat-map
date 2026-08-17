@@ -231,6 +231,41 @@ ok('no tax escrow is collected when no tax is owed',
    totCash.prepaids[2].amount === 0,
    `cash to close $${Math.round(totCash.total).toLocaleString()}`);
 
+console.log('\n=== VA closing costs: what can and cannot be financed ===\n');
+const vaClose = (extra = {}) => Engine.cashToClose(
+  zone, { ...closingBase, downPct: 0, loanType: 'va', ...extra }, MARKET);
+const convClose = Engine.cashToClose(
+  zone, { ...closingBase, downPct: 0 }, MARKET);
+const vc = vaClose();
+
+const escrowLine = vc.fees.find((f) => f.name === 'Escrow / settlement');
+ok('escrow/settlement is waived as a VA non-allowable fee',
+   escrowLine.amount === 0 && !!escrowLine.waived, escrowLine.waived);
+eq('waiving it lowers VA cash by exactly that fee',
+   convClose.feesTotal - vc.feesTotal - (convClose.fees[0].amount - vc.fees[0].amount),
+   650, 0.5);
+ok('the 1% origination itself stays allowable', vc.fees[0].amount > 0,
+   `$${vc.fees[0].amount.toFixed(0)}`);
+ok('itemising instead of the flat 1% restores the escrow fee',
+   vaClose({ closing: { ...closingBase.closing, originationPct: 0 } })
+     .fees.find((f) => f.name === 'Escrow / settlement').amount === 650);
+
+// The funding fee is financed and must never appear in cash to close.
+ok('funding fee is financed, not in cash to close', vc.financedFee > 0);
+const feeInCash = vc.fees.concat(vc.prepaids).some((x) => Math.abs(x.amount - vc.financedFee) < 1);
+ok('funding fee does not double-count as a closing cost', !feeInCash,
+   `$${Math.round(vc.financedFee).toLocaleString()} financed, cash $${Math.round(vc.total).toLocaleString()}`);
+
+// Concessions are the actual route to zero cash.
+const capPct = MARKET.va_funding_fee.seller_concession_cap_pct;
+eq('VA seller concession cap published', capPct, 4);
+const covered = vaClose({ closing: { ...closingBase.closing, sellerCredit: Math.ceil(vc.total) } });
+ok('a seller credit covering the total gets a VA buyer to $0 cash',
+   covered.total === 0, `credit of $${Math.ceil(vc.total).toLocaleString()}`);
+ok('an exempt VA borrower at 0% down finances exactly the price',
+   Engine.loanDetail(340000, { ...closingBase, downPct: 0, loanType: 'va', vaFeeExempt: true }, MARKET)
+     .principal === 340000);
+
 console.log(`
 ${pass} passed, ${fail} failed
 `);

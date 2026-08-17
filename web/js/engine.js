@@ -311,6 +311,21 @@
     if (c.buyerAgentPct > 0) {
       fees.push({ name: "Buyer's agent", amount: price * c.buyerAgentPct / 100 });
     }
+
+    // VA non-allowable fees. When the lender takes the flat 1% origination it
+    // is barred from also charging the veteran for escrow/settlement, document
+    // prep, underwriting or processing — those must fall to the seller, the
+    // agent, or the lender. Charging them here would overstate a VA buyer's
+    // cash by several hundred dollars.
+    const vaNonAllowable = input.loanType === 'va' && (c.originationPct || 0) > 0;
+    if (vaNonAllowable) {
+      for (const f of fees) {
+        if (f.name === 'Escrow / settlement' && f.amount > 0) {
+          f.waived = 'not payable by the veteran on a VA loan';
+          f.amount = 0;
+        }
+      }
+    }
     const feesTotal = fees.reduce((s, f) => s + f.amount, 0);
 
     // --- Escrow and prepaids -------------------------------------------
@@ -349,6 +364,7 @@
       prepaids, prepaidsTotal,
       credits, creditsTotal,
       financedFee: loan.financedFee,
+      vaNonAllowable,
       total: Math.max(0, total),
       pctOfPrice: price > 0 ? (Math.max(0, total) / price) * 100 : 0,
     };
