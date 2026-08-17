@@ -126,11 +126,25 @@ CORS policies.
 
 ## Keeping data current
 
-**In the app: press "Update data."** No code, no Python, no terminal. It pulls
-the newest published dataset and swaps it in live — the map, the rate stack, the
-mortgage rate and the special-district list all refresh in place. The result is
-cached, so it survives a reload. If the network is down the button says so and
-the bundled data keeps working.
+There are two controls, and it matters which one you reach for:
+
+| Control | Where | What it does |
+|---|---|---|
+| **Refresh data** workflow | Repo → **Actions** tab | Fetches from the Comptroller, Census and FRED — the only thing that pulls new figures from the outside world |
+| **Update data** button | On the map | Copies whatever that workflow last committed |
+
+**Day to day, the button is all you need.** No code, no Python, no terminal. It
+pulls the newest published dataset and swaps it in live — the map, the rate
+stack, the mortgage rate and the special-district list all refresh in place. The
+result is cached, so it survives a reload. If the network is down the button says
+so and the bundled data keeps working.
+
+**The button cannot reach the original sources** (see the CORS table below), so
+it can only ever be as current as the repo. If the scheduled workflow has
+stopped, the button would otherwise report "up to date" while serving stale
+figures — so past 45 days it says *"Repo has nothing newer… the scheduled
+refresh may have stopped"* instead, and the header banner links straight to the
+workflow's **Run workflow** button.
 
 The page also checks quietly on load and only speaks up if something newer
 exists. If the data it is showing is more than 45 days old, the header says so

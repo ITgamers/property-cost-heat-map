@@ -372,12 +372,24 @@
     const warn = $('staleWarn');
     if (age > STALE_DAYS) {
       const months = Math.floor(age / 30);
-      warn.textContent = `⚠ Data is ${months >= 2 ? months + ' months' : age + ' days'} old — press Update data`;
+      const url = actionsUrl();
+      // Past this age the likely cause is a stopped schedule, and the button
+      // cannot fix that - it only mirrors the repo. Point at the one control
+      // that actually re-fetches from the sources.
+      warn.textContent = `⚠ Data is ${months >= 2 ? months + ' months' : age + ' days'} old — ` +
+        (url ? 'run a refresh' : 'press Update data');
+      if (url) warn.href = url;
       warn.hidden = false;
     } else {
       warn.hidden = true;
     }
   }
+
+  /** Deep link to the workflow page, where "Run workflow" lives. */
+  const actionsUrl = () =>
+    MARKET.update && MARKET.update.repo
+      ? `https://github.com/${MARKET.update.repo}/actions/workflows/update-data.yml`
+      : null;
 
   /** Swap in a new dataset and rebuild everything that depends on it. */
   function applyData(market, zones) {
@@ -438,7 +450,14 @@
       const market = await r.json();
 
       if (!(market.generated > MARKET.generated)) {
-        return manual && setStatus(`Up to date (${MARKET.generated}).`);
+        // "Up to date" only means "matches the repo". If the repo itself is old,
+        // say so plainly rather than implying the figures are current.
+        const age = dataAgeDays();
+        return manual && setStatus(
+          age > STALE_DAYS
+            ? `Repo has nothing newer — its data is ${MARKET.generated}. The scheduled refresh may have stopped.`
+            : `Up to date (${MARKET.generated}).`
+        );
       }
 
       if (manual) setStatus('Newer data found — downloading…');
