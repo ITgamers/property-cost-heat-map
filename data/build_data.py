@@ -121,6 +121,50 @@ def write_pair(stem: str, payload, global_name: str) -> None:
     )
 
 
+RATE_FILES = ("county", "city", "school-district", "special-district")
+
+
+def resolve_year(requested: str) -> str:
+    """
+    Find the newest tax year the Comptroller has actually published.
+
+    Texas certifies rates in September/October, so the current calendar year's
+    files do not exist for most of the year. Probing instead of hardcoding means
+    the annual rollover happens on its own - otherwise the scheduled rebuild
+    would keep pulling last year's rates indefinitely once a new year lands.
+    """
+    if requested != "auto":
+        return requested
+    from datetime import date
+
+    for year in range(date.today().year, date.today().year - 5, -1):
+        if all(
+            requests.head(
+                f"{COMPTROLLER}/{year}-{f}-rates-levies.xlsx",
+                timeout=60, allow_redirects=True,
+            ).status_code == 200
+            for f in RATE_FILES
+        ):
+            log(f"newest published tax year: {year}")
+            return str(year)
+    raise SystemExit("No complete tax year found on comptroller.texas.gov")
+
+
+def load_assumptions() -> dict:
+    """Hand-maintained figures that cannot be fetched. See data/assumptions.json."""
+    path = HERE / "assumptions.json"
+    if not path.exists():
+        raise SystemExit(f"Missing {path}. It holds the insurance and exemption inputs.")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    # Strip the editor-facing commentary so it never reaches the browser payload.
+    def clean_notes(obj):
+        if isinstance(obj, dict):
+            return {k: clean_notes(v) for k, v in obj.items()
+                    if not k.startswith("_")}
+        return obj
+    return clean_notes(data)
+
+
 def download(url: str, dest: Path, refresh: bool = False) -> Path:
     """Download to dest, reusing the cached copy unless refresh is set."""
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -384,7 +428,11 @@ def _zone(geom, county, county_rate, countywide, countywide_rate,
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--year", default="2025", help="tax year to pull (default 2025)")
+    ap.add_argument(
+        "--year", default="auto",
+        help="tax year to pull; 'auto' (default) uses the newest year the "
+             "Comptroller has published",
+    )
     ap.add_argument("--refresh", action="store_true", help="re-download sources")
     ap.add_argument(
         "--repo",
@@ -396,14 +444,16 @@ def main() -> int:
 
     OUT.mkdir(parents=True, exist_ok=True)
     provenance: list[dict] = []
+    assumptions = load_assumptions()
 
     # 1. Tax rates -----------------------------------------------------------
     print("\n[1/4] Texas Comptroller rates and levies")
+    year = resolve_year(args.year)
     files = {
-        "county": f"{args.year}-county-rates-levies.xlsx",
-        "school": f"{args.year}-school-district-rates-levies.xlsx",
-        "city": f"{args.year}-city-rates-levies.xlsx",
-        "special": f"{args.year}-special-district-rates-levies.xlsx",
+        "county": f"{year}-county-rates-levies.xlsx",
+        "school": f"{year}-school-district-rates-levies.xlsx",
+        "city": f"{year}-city-rates-levies.xlsx",
+        "special": f"{year}-special-district-rates-levies.xlsx",
     }
     units: list[TaxUnit] = []
     for kind, fname in files.items():
@@ -505,50 +555,19 @@ def main() -> int:
     except Exception as exc:
         log(f"FRED unavailable ({exc}); falling back to {mortgage_rate}%")
 
+    # Insurance figures, exemption rules and product spreads are hand-maintained
+    # in data/assumptions.json - editable without touching any code.
     market = {
         "generated": time.strftime("%Y-%m-%d"),
-        "tax_year": args.year,
+        "tax_year": year,
         "mortgage": {
             "rate_30yr": mortgage_rate,
-            # PMMS publishes only the 30-yr and 15-yr headline. Spreads below are
-            # conventional market rules of thumb, adjustable in the UI.
-            "spread_15yr": -0.75,
-            "spread_fha": -0.25,
-            "spread_va": -0.30,
+            **assumptions["mortgage_spreads"],
             "as_of": mortgage_date,
             "source": "Freddie Mac PMMS via FRED (MORTGAGE30US)",
         },
-        # No free per-ZIP homeowners insurance API exists; the good data
-        # (Quadrant/Insure.com) is proprietary. This is a transparent model:
-        # statewide average scaled by dwelling value, with a county hail/risk
-        # multiplier. Always user-overridable and labelled as an estimate.
-        "insurance": {
-            "model": "value_scaled",
-            "state_avg_annual": 4350,
-            "state_avg_dwelling": 300000,
-            "min_annual": 900,
-            "county_factor": {
-                "Bexar": 1.00, "Comal": 1.02, "Guadalupe": 1.01, "Kendall": 1.03,
-                "Medina": 0.98, "Wilson": 0.97, "Atascosa": 0.96,
-            },
-            "source": "Insure.com 2026 Texas average ($4,350 @ $300k dwelling)",
-            "note": "Modelled estimate, not a quote. Override with a real quote.",
-        },
-        # Texas exemption rules for the rules engine. Keyed so other states can
-        # be added as sibling rule sets without touching engine code.
-        "exemptions": {
-            "TX": {
-                "school_homestead": 140000,
-                "school_homestead_senior_extra": 60000,
-                "local_optional_pct": 0.20,
-                "local_optional_applies_to": ["county", "city", "countywide"],
-                "senior_flat": 3000,
-                "appraisal_cap_pct": 0.10,
-                "note": "Prop 13 (2025) raised the school homestead exemption to "
-                        "$140,000 effective 2026-01-01. Bexar County and the City "
-                        "of San Antonio each grant the maximum 20% local option.",
-            }
-        },
+        "insurance": assumptions["insurance"],
+        "exemptions": assumptions["exemptions"],
         "optional_districts": optional_by_county,
         "provenance": provenance,
         # Where the in-app "Update data" button looks for fresher output.

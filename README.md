@@ -133,7 +133,27 @@ cached, so it survives a reload. If the network is down the button says so and
 the bundled data keeps working.
 
 The page also checks quietly on load and only speaks up if something newer
-exists.
+exists. If the data it is showing is more than 45 days old, the header says so
+outright — stale tax rates otherwise look exactly like fresh ones.
+
+### What updates by itself, and what doesn't
+
+| Input | How it refreshes | Cadence |
+|---|---|---|
+| Mortgage rate | Automatic (FRED) | Weekly |
+| Tax rates & levies | Automatic (Comptroller) | Annual, ~October |
+| **Tax year rollover** | **Automatic** — the build probes for the newest published year | Annual |
+| Taxing-unit & district lists | Automatic (Comptroller) | Annual |
+| Boundaries | Automatic (Census) | Annual |
+| Insurance baseline | **By hand** — [`data/assumptions.json`](data/assumptions.json) | Check yearly |
+| Exemption amounts | **By hand** — [`data/assumptions.json`](data/assumptions.json) | After each legislative session |
+| Loan product spreads | **By hand** — [`data/assumptions.json`](data/assumptions.json) | Rarely |
+
+The three hand-maintained items are the ones no public feed publishes. They live
+together in one commented JSON file so updating them needs no Python and no
+JavaScript: edit the numbers, commit, and the next deploy carries them. Texas
+legislates in odd-numbered years, so January of an odd year is the natural time
+to review the exemption block.
 
 ### Why it can't fetch the original sources directly
 
@@ -162,6 +182,22 @@ You can also trigger a refresh by hand from the repo's **Actions** tab
 > GitHub serves raw files through a CDN with a 5-minute cache, so immediately
 > after a refresh commit the button may still report "up to date" for a few
 > minutes. It resolves on its own.
+
+### ⚠ If you leave the repo alone for months
+
+**GitHub disables scheduled workflows after 60 days of repository inactivity.**
+It emails the repo owner when this happens, but the practical effect is that the
+Thursday refresh stops and the data quietly freezes — which is exactly the
+failure mode a tax map should never have.
+
+Two safeguards:
+
+- The app shows a **"Data is N months old"** banner past 45 days, so a stopped
+  schedule is visible in the product rather than only in your inbox.
+- Re-enabling takes one click: repo → **Actions** → *Refresh data* →
+  **Enable workflow**, then **Run workflow** to catch up immediately.
+
+Any push to the repo also resets the 60-day clock.
 
 If you fork this, point the button at your own copy:
 

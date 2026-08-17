@@ -350,10 +350,33 @@
 
   const setStatus = (msg) => { $('updateStatus').textContent = msg || ''; };
 
+  /**
+   * Age the data out loud. The scheduled rebuild can stop silently — GitHub
+   * disables cron workflows after 60 days of repository inactivity — and stale
+   * tax rates look exactly like fresh ones. Surfacing the age is what turns a
+   * silent wrong answer into a visible one.
+   */
+  const STALE_DAYS = 45;
+
+  function dataAgeDays() {
+    const d = Date.parse(MARKET.generated + 'T00:00:00Z');
+    return isNaN(d) ? 0 : Math.floor((Date.now() - d) / 86400000);
+  }
+
   function setVintage() {
+    const age = dataAgeDays();
     $('vintage').textContent =
       `${MARKET.tax_year} certified tax rates · ${ZONES.features.length} tax zones · ` +
       `mortgage ${MARKET.mortgage.rate_30yr}% (${MARKET.mortgage.as_of}) · data ${MARKET.generated}`;
+
+    const warn = $('staleWarn');
+    if (age > STALE_DAYS) {
+      const months = Math.floor(age / 30);
+      warn.textContent = `⚠ Data is ${months >= 2 ? months + ' months' : age + ' days'} old — press Update data`;
+      warn.hidden = false;
+    } else {
+      warn.hidden = true;
+    }
   }
 
   /** Swap in a new dataset and rebuild everything that depends on it. */

@@ -97,6 +97,16 @@ header.bar {
 header.bar h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 header.bar .vintage { color: var(--muted); font-size: 12px; }
 header.bar .spacer { flex: 1; }
+/* Status colours pair with a label, never carry meaning by hue alone. */
+header.bar .stale {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 55%, transparent);
+  padding: 2px 9px;
+  border-radius: 99px;
+}
 
 aside {
   background: var(--surface-1);
