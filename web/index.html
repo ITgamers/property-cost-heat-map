@@ -72,6 +72,24 @@
         </div>
       </div>
       <div class="hint" id="rateHint"></div>
+
+      <div id="vaFields" hidden>
+        <div class="field">
+          <label for="vaUse">VA entitlement</label>
+          <select id="vaUse">
+            <option value="first" selected>First use</option>
+            <option value="subsequent">Subsequent use</option>
+          </select>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="vaExempt">
+          <span>Funding fee exempt
+            <span class="hint">Any VA disability rating, Purple Heart on active
+              duty, or eligible surviving spouse. Waives the fee entirely.</span></span>
+        </label>
+        <div class="hint">Sellers may contribute up to 4% of value in
+          concessions on a VA loan, on top of customary closing costs.</div>
+      </div>
     </div>
 
     <div class="group">
@@ -87,6 +105,13 @@
         <span>Age 65+ or disabled
           <span class="hint">Adds $60,000 to the school exemption.</span></span>
       </label>
+      <div class="field">
+        <label for="vetTier">Disabled veteran rating</label>
+        <select id="vetTier"></select>
+        <div class="hint" id="vetHint">Texas exempts a 100% or Individual
+          Unemployability rated veteran's homestead from property tax entirely.
+          Lower ratings get a flat reduction against every taxing unit.</div>
+      </div>
       <div class="field">
         <label for="localPct">Local optional exemption — <b id="localLbl">20%</b></label>
         <input type="range" id="localPct" min="0" max="20" value="20" step="1">

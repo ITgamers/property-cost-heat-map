@@ -163,6 +163,10 @@
       hoaMonthly: +$('hoa').value || 0,
       specialRate: +$('mudRate').value || 0,
       specialName: $('mudSel').selectedOptions[0]?.dataset.name,
+      vetExemptionAmount: +($('vetTier').selectedOptions[0]?.dataset.amount || 0),
+      vetExemptionTotal: $('vetTier').selectedOptions[0]?.dataset.total === 'true',
+      vaSubsequentUse: $('vaUse').value === 'subsequent',
+      vaFeeExempt: $('vaExempt').checked,
       insuranceOverride: $('insOverride').value,
       dwellingPct: (+$('dwellPct').value || 85) / 100,
       appreciationPct: +$('appr').value || 0,
@@ -374,6 +378,19 @@
         1.00 per $100, about ${usd(input.assessedValue / 100)} a year extra on this
         home. They are parcel-level and cannot be mapped; set one in the sidebar
         to see the impact.</div>`;
+    }
+    if (input.vetExemptionTotal && input.homestead) {
+      html += `<div class="note" style="border-left-color:var(--good);
+        background:color-mix(in srgb, var(--good) 8%, transparent)">
+        <strong>Total property tax exemption applied.</strong> A 100% or Individual
+        Unemployability rating exempts this homestead from property tax entirely
+        (Texas Tax Code 11.131) — ${usd(m.taxLines.reduce((s, l) => s + l.exempt * l.rate / 100, 0))}
+        a year that every other buyer here pays. Property tax stops being a
+        reason to prefer one area over another; insurance and price still apply.</div>`;
+    } else if (input.vetExemptionTotal && !input.homestead) {
+      html += `<div class="note"><strong>Tick the homestead box to apply the total
+        veteran exemption.</strong> Tax Code 11.131 is a residence homestead
+        provision, so it only applies to the home you live in.</div>`;
     }
     if (!input.homestead) {
       html += `<div class="note"><strong>No homestead exemption applied.</strong>
@@ -692,8 +709,26 @@
     }
   }
 
+  /** Disabled-veteran tiers come from the data, so the amounts stay editable. */
+  function populateVetTiers() {
+    const sel = $('vetTier');
+    const keep = sel.value;
+    const tiers = mkt().exemptions.TX.disabled_veteran_tiers || [];
+    sel.innerHTML = '';
+    for (const t of tiers) {
+      const o = document.createElement('option');
+      o.value = t.id;
+      o.dataset.amount = t.amount || 0;
+      o.dataset.total = String(!!t.total);
+      o.textContent = t.total ? t.label : t.amount ? `${t.label} — ${usd(t.amount)}` : t.label;
+      sel.appendChild(o);
+    }
+    if (keep) sel.value = keep;
+  }
+
   function initControls() {
     populateDistricts();
+    populateVetTiers();
     $('mudSel').addEventListener('change', (e) => {
       $('mudRate').value = e.target.value;
       refresh();
@@ -706,6 +741,8 @@
         if (!b) return;
         $(id).querySelectorAll('button').forEach((x) =>
           x.setAttribute('aria-pressed', String(x === b)));
+        $('vaFields').hidden =
+          document.querySelector('#typeSeg [aria-pressed="true"]').dataset.v !== 'va';
         refresh();
       });
     }

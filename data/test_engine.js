@@ -168,6 +168,69 @@ ok('VA funding fee is financed, not paid at the table', vaCash.financedFee > 0,
 ok('cash to close never goes negative',
    Engine.cashToClose(zone, { ...closingBase, closing: { ...closingBase.closing, sellerCredit: 999999 } }, MARKET).total === 0);
 
+/* ------------------------------------------------------------------------
+ * VA loans and Texas disabled-veteran exemptions
+ * --------------------------------------------------------------------- */
+console.log('\n=== VA funding fee is tiered, not flat ===\n');
+const vaLoan = (downPct, opts = {}) => Engine.loanDetail(
+  400000, { ...base, downPct, loanType: 'va', ...opts }, MARKET);
+const fee = (d, o) => (vaLoan(d, o).financedFee / (400000 * (1 - d))) * 100;
+
+eq('first use, 0% down  -> 2.15%', fee(0), 2.15, 0.001);
+eq('first use, 5% down  -> 1.50%', fee(0.05), 1.50, 0.001);
+eq('first use, 10% down -> 1.25%', fee(0.10), 1.25, 0.001);
+eq('subsequent, 0% down -> 3.30%', fee(0, { vaSubsequentUse: true }), 3.30, 0.001);
+eq('subsequent, 5% down -> 1.50%', fee(0.05, { vaSubsequentUse: true }), 1.50, 0.001);
+ok('disability exemption waives the fee entirely',
+   vaLoan(0, { vaFeeExempt: true }).financedFee === 0);
+ok('exempt VA borrows exactly the price at 0% down',
+   vaLoan(0, { vaFeeExempt: true }).principal === 400000);
+ok('VA never carries monthly mortgage insurance',
+   [0, 0.05, 0.2].every((d) => vaLoan(d).monthlyMI === 0));
+
+console.log('\n=== Texas disabled veteran property tax exemptions ===\n');
+const vet = (amount, total = false, extra = {}) => Engine.propertyTax(
+  zone, { ...base, vetExemptionAmount: amount, vetExemptionTotal: total, ...extra },
+  MARKET.exemptions.TX);
+
+const tiers = MARKET.exemptions.TX.disabled_veteran_tiers;
+ok('tiers published in the data', tiers.length === 6,
+   tiers.map((t) => `${t.label}=${t.total ? 'TOTAL' : t.amount}`).join(', '));
+
+// 11.22 flat amounts come off every unit, so the saving is the amount times
+// the combined rate.
+const t70 = vet(12000);
+eq('70-99% band saves 12,000 x combined rate',
+   tax.total - t70.total, 12000 * zone.total_rate / 100, 0.5);
+const t10 = vet(5000);
+eq('10-29% band saves 5,000 x combined rate',
+   tax.total - t10.total, 5000 * zone.total_rate / 100, 0.5);
+
+// 11.131 total exemption.
+const tot = vet(0, true);
+eq('100% / TDIU owes no property tax', tot.total, 0);
+ok('every taxing unit is zeroed, not just the school district',
+   tot.lines.every((l) => l.amount === 0 && l.taxable === 0),
+   `${tot.lines.length} units all zero`);
+ok('the breakdown still names who would have taxed it',
+   tot.lines.length === tax.lines.length);
+ok('total exemption requires the homestead (11.131 is a homestead provision)',
+   vet(0, true, { homestead: false }).total > 0,
+   `without homestead: $${vet(0, true, { homestead: false }).total.toFixed(0)}`);
+ok('a MUD is wiped out too',
+   vet(0, true, { specialRate: 1.0 }).total === 0);
+
+const totMonthly = Engine.monthly(
+  zone, { ...base, vetExemptionTotal: true }, MARKET);
+ok('monthly drops by the whole tax line',
+   Math.abs((m.total - totMonthly.total) - m.parts.tax) < 0.5,
+   `$${m.total.toFixed(0)} -> $${totMonthly.total.toFixed(0)}/mo, tax was $${m.parts.tax.toFixed(0)}`);
+const totCash = Engine.cashToClose(
+  zone, { ...closingBase, vetExemptionTotal: true }, MARKET);
+ok('no tax escrow is collected when no tax is owed',
+   totCash.prepaids[2].amount === 0,
+   `cash to close $${Math.round(totCash.total).toLocaleString()}`);
+
 console.log(`
 ${pass} passed, ${fail} failed
 `);

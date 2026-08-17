@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-16",
+  "generated": "2026-08-17",
   "tax_year": "2025",
   "mortgage": {
     "rate_30yr": 6.67,
@@ -8,6 +8,19 @@
     "spread_va": -0.3,
     "as_of": "2026-08-13",
     "source": "Freddie Mac PMMS via FRED (MORTGAGE30US)"
+  },
+  "va_funding_fee": {
+    "first_use": {
+      "under_5": 2.15,
+      "under_10": 1.5,
+      "from_10": 1.25
+    },
+    "subsequent_use": {
+      "under_5": 3.3,
+      "under_10": 1.5,
+      "from_10": 1.25
+    },
+    "seller_concession_cap_pct": 4.0
   },
   "insurance": {
     "model": "value_scaled",
@@ -38,6 +51,39 @@
       ],
       "senior_flat": 3000,
       "appraisal_cap_pct": 0.1,
+      "disabled_veteran_tiers": [
+        {
+          "id": "none",
+          "label": "Not applicable",
+          "amount": 0
+        },
+        {
+          "id": "t10",
+          "label": "10-29%",
+          "amount": 5000
+        },
+        {
+          "id": "t30",
+          "label": "30-49%",
+          "amount": 7500
+        },
+        {
+          "id": "t50",
+          "label": "50-69%",
+          "amount": 10000
+        },
+        {
+          "id": "t70",
+          "label": "70-99%",
+          "amount": 12000
+        },
+        {
+          "id": "t100",
+          "label": "100% or Individual Unemployability",
+          "amount": 0,
+          "total": true
+        }
+      ],
       "note": "Prop 13 (2025) raised the school homestead exemption to $140,000 effective 2026-01-01. Bexar County and the City of San Antonio each grant the maximum 20% local option."
     }
   },

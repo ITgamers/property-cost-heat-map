@@ -142,11 +142,53 @@ ways that surprise buyers, so they're modelled separately:
   month).
 - FHA finances the 1.75% upfront MIP into the balance, and annual MIP is
   **permanent** above 90% LTV.
-- VA has no monthly mortgage insurance; the funding fee is financed.
+- VA has no monthly mortgage insurance at any down payment; the funding fee is
+  tiered and financed. See below.
 
 **Insurance.** Texas averages ~$4,350/year at $300,000 dwelling coverage — often
 a bigger swing than the tax difference between two neighborhoods, and inflating
 faster. See the honesty note below.
+
+**VA loans and veteran exemptions.** San Antonio is a military town, and the VA
+path diverges from conventional in two ways large enough to change which house
+is the right one.
+
+*The funding fee is tiered, not flat* — by down payment and by whether VA
+entitlement has been used before:
+
+| Down payment | First use | Subsequent use |
+|---|---|---|
+| Under 5% | 2.15% | 3.30% |
+| 5–9.99% | 1.50% | 1.50% |
+| 10% or more | 1.25% | 1.25% |
+
+It is **waived entirely** for veterans receiving VA disability compensation at
+any rating, Purple Heart recipients on active duty, and eligible surviving
+spouses — a large share of VA borrowers. Tick *Funding fee exempt* and a
+zero-down VA borrower finances exactly the purchase price. Sellers may also
+contribute up to 4% of value in concessions on a VA loan.
+
+*Texas exempts disabled veterans from property tax.* Under Tax Code 11.22, a
+flat amount comes off the taxable value at **every** taxing unit:
+
+| VA rating | Exemption |
+|---|---|
+| 10–29% | $5,000 |
+| 30–49% | $7,500 |
+| 50–69% | $10,000 |
+| 70–99% | $12,000 |
+| **100% or Individual Unemployability** | **Total — no property tax at all** |
+
+That last row is Tax Code 11.131, and it is not a discount. A 100%-rated
+veteran's residence homestead is exempt from property tax entirely — county,
+city, school district, hospital, college, and any MUD. On a $400,000 home in San
+Antonio ISD that removes **$7,116 a year**, dropping the payment from $3,062 to
+$2,469/month, and no tax escrow is collected at closing either.
+
+For a qualifying veteran this changes what the map is *for*: property tax stops
+being a reason to prefer one area over another, and insurance, price and schools
+decide it instead. It applies only to the residence homestead, so the app says
+so if the homestead box is unticked.
 
 **Ten-year projection.** Year one flatters Texas. Appraisals compound against the
 homestead cap and insurance climbs faster than wages, so the app projects both.

@@ -36,13 +36,21 @@
     const senior = hs && !!input.senior;
     const lines = [];
 
+    // Texas disabled veteran exemptions.
+    //   Tax Code 11.22  - flat dollar amount by rating band, against every unit.
+    //   Tax Code 11.131 - a 100% / Individual Unemployability rating exempts the
+    //                     residence homestead from property tax entirely.
+    // The total exemption is a homestead provision, so it requires the homestead.
+    const vetFlat = Math.max(0, input.vetExemptionAmount || 0);
+    const vetTotal = !!input.vetExemptionTotal && hs;
+
     // School district: flat-dollar homestead exemption off the taxable value.
     let schoolExempt = 0;
     if (hs) {
       schoolExempt += rules.school_homestead;
       if (senior) schoolExempt += rules.school_homestead_senior_extra;
     }
-    const schoolTaxable = Math.max(0, assessed - schoolExempt);
+    const schoolTaxable = Math.max(0, assessed - schoolExempt - vetFlat);
     lines.push({
       name: zone.isd,
       kind: 'school',
@@ -54,7 +62,9 @@
 
     // City / county / county-wide units: percentage exemption instead.
     const pct = hs ? clamp(input.localOptionalPct ?? rules.local_optional_pct, 0, 0.2) : 0;
-    const localTaxable = Math.max(0, assessed * (1 - pct) - (senior ? rules.senior_flat : 0));
+    const localTaxable = Math.max(
+      0, assessed * (1 - pct) - (senior ? rules.senior_flat : 0) - vetFlat
+    );
 
     const localUnits = [
       { name: zone.county + ' County', kind: 'county', rate: zone.rates.county },
@@ -88,6 +98,16 @@
       });
     }
 
+    if (vetTotal) {
+      // Zero every unit rather than returning early, so the breakdown still
+      // shows who *would* have taxed the home and by how much it was wiped out.
+      for (const l of lines) {
+        l.exempt = assessed;
+        l.taxable = 0;
+        l.amount = 0;
+      }
+      return { total: 0, lines, vetTotal: true };
+    }
     return { total: lines.reduce((s, l) => s + l.amount, 0), lines };
   }
 
@@ -132,7 +152,8 @@
    *   VA           - no monthly MI at all; a one-time funding fee is financed
    */
   function loanDetail(price, input, market) {
-    const down = price * clamp(input.downPct, 0, 1);
+    const downFrac = clamp(input.downPct, 0, 1);
+    const down = price * downFrac;
     let base = Math.max(0, price - down);
     const ltv = price > 0 ? base / price : 0;
     const rate = noteRate(market, input);
@@ -153,8 +174,26 @@
         miEndsMonth = 132;
       }
     } else if (input.loanType === 'va') {
-      financedFee = base * 0.0215; // first-use funding fee
-      miNote = 'VA: no monthly mortgage insurance';
+      // Tiered by down payment and by whether VA entitlement has been used
+      // before — not a flat rate. Waived entirely for veterans receiving
+      // disability compensation, Purple Heart recipients on active duty, and
+      // eligible surviving spouses, which is a large share of VA borrowers.
+      // Fall back to the statutory schedule: a browser holding a cached dataset
+      // from before this block existed must not crash on a VA quote.
+      const sched = market.va_funding_fee || {
+        first_use: { under_5: 2.15, under_10: 1.50, from_10: 1.25 },
+        subsequent_use: { under_5: 3.30, under_10: 1.50, from_10: 1.25 },
+      };
+      // Band off the input fraction, not 1 - ltv: that subtraction lands on
+      // 0.09999999999999998 for a 10% down payment and silently drops the
+      // borrower into the more expensive tier.
+      const band = downFrac >= 0.10 ? 'from_10' : downFrac >= 0.05 ? 'under_10' : 'under_5';
+      const table = input.vaSubsequentUse ? sched.subsequent_use : sched.first_use;
+      const feePct = input.vaFeeExempt ? 0 : table[band];
+      financedFee = base * feePct / 100;
+      miNote = input.vaFeeExempt
+        ? 'VA: no monthly mortgage insurance, funding fee waived'
+        : `VA: no monthly mortgage insurance · ${feePct}% funding fee financed`;
     } else if (ltv > 0.8) {
       const annual = input.pmiPct / 100;
       monthlyMI = (base * annual) / 12;

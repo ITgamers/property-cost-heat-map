@@ -566,6 +566,7 @@ def main() -> int:
             "as_of": mortgage_date,
             "source": "Freddie Mac PMMS via FRED (MORTGAGE30US)",
         },
+        "va_funding_fee": assumptions["va_funding_fee"],
         "insurance": assumptions["insurance"],
         "exemptions": assumptions["exemptions"],
         "optional_districts": optional_by_county,
