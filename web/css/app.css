@@ -66,6 +66,10 @@
 
 * { box-sizing: border-box; }
 
+/* Any explicit `display` in author CSS outranks the UA rule for [hidden],
+   which silently breaks JS that toggles the attribute. Make it authoritative. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: var(--font);
@@ -325,6 +329,37 @@ button.ghost {
   border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: var(--font); font-size: 12px;
 }
 button.ghost:hover { border-color: var(--c1); color: var(--c1); }
+
+/* Advanced assumptions - collapsed by default so it never crowds the
+   everyday controls, but reachable without leaving the page. */
+details.adv > summary {
+  cursor: pointer;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+details.adv > summary:hover { color: var(--text-secondary); }
+details.adv h3 {
+  font-size: 12px;
+  margin: 12px 0 6px;
+  color: var(--text-secondary);
+  font-weight: 650;
+}
+details.adv .badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--warning) 26%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 55%, transparent);
+}
+details.adv button.ghost { margin-top: 12px; width: 100%; }
 
 .empty { color: var(--muted); padding: 26px 0; text-align: center; font-size: 13px; }
 .srcs { font-size: 11px; color: var(--muted); margin-top: 14px; line-height: 1.7; }

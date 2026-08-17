@@ -159,15 +159,35 @@ outright — stale tax rates otherwise look exactly like fresh ones.
 | **Tax year rollover** | **Automatic** — the build probes for the newest published year | Annual |
 | Taxing-unit & district lists | Automatic (Comptroller) | Annual |
 | Boundaries | Automatic (Census) | Annual |
-| Insurance baseline | **By hand** — [`data/assumptions.json`](data/assumptions.json) | Check yearly |
-| Exemption amounts | **By hand** — [`data/assumptions.json`](data/assumptions.json) | After each legislative session |
-| Loan product spreads | **By hand** — [`data/assumptions.json`](data/assumptions.json) | Rarely |
+| Insurance baseline | **By hand** — in-app panel, or [`assumptions.json`](data/assumptions.json) | Check yearly |
+| Exemption amounts | **By hand** — in-app panel, or [`assumptions.json`](data/assumptions.json) | After each legislative session |
+| Loan product spreads | **By hand** — in-app panel, or [`assumptions.json`](data/assumptions.json) | Rarely |
 
-The three hand-maintained items are the ones no public feed publishes. They live
-together in one commented JSON file so updating them needs no Python and no
-JavaScript: edit the numbers, commit, and the next deploy carries them. Texas
-legislates in odd-numbered years, so January of an odd year is the natural time
-to review the exemption block.
+### The Assumptions panel
+
+The three hand-maintained items are the ones no public feed publishes, and both
+ways of changing them are open to you:
+
+- **In the app** — the **Assumptions** section at the bottom of the sidebar.
+  Every figure is editable in place: school homestead exemption, the 65+/disabled
+  addition, the local flat exemption, the appraisal cap, the insurance baseline
+  and its dwelling basis, and the 15-year/FHA/VA rate spreads. Fields start at
+  the published values, an **edited** badge appears once anything differs, and
+  **Reset to published defaults** puts it all back. Changes save in your browser
+  only — nothing is uploaded, and other people see the published numbers.
+
+  Use this to test a scenario ("what if the exemption goes to $200,000?") or to
+  correct a figure that has moved before the repo catches up.
+
+- **In the repo** — [`data/assumptions.json`](data/assumptions.json), editable
+  straight from github.com. This is the one that changes the numbers *for
+  everyone* and survives a cache clear. Commit it and the next deploy carries it.
+
+Texas legislates in odd-numbered years, so January of an odd year is the natural
+time to review the exemption block.
+
+Overrides are layered on top of whatever data is current, so they survive a data
+update; unedited fields follow the new published values.
 
 ### Why it can't fetch the original sources directly
 

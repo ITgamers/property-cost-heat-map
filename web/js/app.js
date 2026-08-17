@@ -13,6 +13,86 @@
   let ZONES = window.ZONES;
   const $ = (id) => document.getElementById(id);
   const CACHE_KEY = 'pchm.data.v1';
+  const ADV_KEY = 'pchm.assumptions.v1';
+
+  /* --- User-overridable assumptions ---------------------------------------
+   * The figures in data/assumptions.json are the ones no public feed
+   * publishes. Editing that file is a code change; these controls let the same
+   * values be adjusted from the page for a scenario, or corrected when one
+   * moves before the repo catches up. Stored in this browser only.
+   *
+   * `eff` is the published data with any overrides layered on. It is rebuilt
+   * only when an override changes, never per zone - metric() runs across every
+   * zone on each keystroke, so cloning there would be wasteful.
+   * ---------------------------------------------------------------------- */
+
+  const ADV_FIELDS = [
+    'school_homestead', 'senior_extra', 'senior_flat', 'cap_pct',
+    'ins_avg', 'ins_dwelling', 'spread_15yr', 'spread_fha', 'spread_va',
+  ];
+  let overrides = {};
+  let eff = null;                     // effective market; null => use MARKET
+  const mkt = () => eff || MARKET;
+
+  /** Read the published value a given override defaults to. */
+  function publishedValue(key, m) {
+    const ex = m.exemptions.TX, ins = m.insurance, mo = m.mortgage;
+    switch (key) {
+      case 'school_homestead': return ex.school_homestead;
+      case 'senior_extra': return ex.school_homestead_senior_extra;
+      case 'senior_flat': return ex.senior_flat;
+      case 'cap_pct': return ex.appraisal_cap_pct * 100;
+      case 'ins_avg': return ins.state_avg_annual;
+      case 'ins_dwelling': return ins.state_avg_dwelling;
+      case 'spread_15yr': return mo.spread_15yr;
+      case 'spread_fha': return mo.spread_fha;
+      case 'spread_va': return mo.spread_va;
+    }
+  }
+
+  /** Rebuild `eff` from MARKET + overrides. */
+  function applyOverrides() {
+    const keys = Object.keys(overrides);
+    $('advBadge').hidden = keys.length === 0;
+    if (!keys.length) { eff = null; return; }
+
+    const m = JSON.parse(JSON.stringify(MARKET));
+    const ex = m.exemptions.TX;
+    const o = overrides;
+    if (o.school_homestead != null) ex.school_homestead = o.school_homestead;
+    if (o.senior_extra != null) ex.school_homestead_senior_extra = o.senior_extra;
+    if (o.senior_flat != null) ex.senior_flat = o.senior_flat;
+    if (o.cap_pct != null) ex.appraisal_cap_pct = o.cap_pct / 100;
+    if (o.ins_avg != null) m.insurance.state_avg_annual = o.ins_avg;
+    if (o.ins_dwelling != null) m.insurance.state_avg_dwelling = Math.max(1, o.ins_dwelling);
+    for (const s of ['spread_15yr', 'spread_fha', 'spread_va']) {
+      if (o[s] != null) m.mortgage[s] = o[s];
+    }
+    eff = m;
+  }
+
+  /** Fill the inputs from published values, keeping any active overrides. */
+  function syncAdvInputs() {
+    for (const key of ADV_FIELDS) {
+      const el = document.querySelector(`[data-adv="${key}"]`);
+      if (el) el.value = overrides[key] != null ? overrides[key] : publishedValue(key, MARKET);
+    }
+    $('advBadge').hidden = Object.keys(overrides).length === 0;
+  }
+
+  function loadOverrides() {
+    try {
+      const raw = localStorage.getItem(ADV_KEY);
+      if (raw) overrides = JSON.parse(raw) || {};
+    } catch (e) { overrides = {}; }
+  }
+  function saveOverrides() {
+    try {
+      Object.keys(overrides).length
+        ? localStorage.setItem(ADV_KEY, JSON.stringify(overrides))
+        : localStorage.removeItem(ADV_KEY);
+    } catch (e) { /* storage disabled; overrides still apply this session */ }
+  }
 
   // Sequential blue, steps 100 -> 700. Index 0 is always the lowest bin.
   const RAMP_STEPS = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
@@ -93,9 +173,9 @@
   /** The value the choropleth encodes, per the active mode. */
   function metric(zoneProps, input) {
     if (state.mode === 'afford') {
-      return Engine.affordablePrice(zoneProps, input, MARKET, +$('budget').value || 0);
+      return Engine.affordablePrice(zoneProps, input, mkt(), +$('budget').value || 0);
     }
-    const m = Engine.monthly(zoneProps, input, MARKET);
+    const m = Engine.monthly(zoneProps, input, mkt());
     return state.mode === 'rate' ? m.effectiveTaxRate : m.total;
   }
 
@@ -186,11 +266,11 @@
   }
 
   function syncHints(input) {
-    const r = Engine.noteRate(MARKET, input);
+    const r = Engine.noteRate(mkt(), input);
     $('rateHint').textContent =
       `Using ${r.toFixed(2)}% — Freddie Mac PMMS ${MARKET.mortgage.rate_30yr}% ` +
       `(${MARKET.mortgage.as_of})${input.rateOverride ? ', overridden' : ' plus product spread'}.`;
-    const ins = MARKET.insurance;
+    const ins = mkt().insurance;   // reflects any assumption override
     $('insHint').textContent = input.insuranceOverride
       ? 'Using your figure.'
       : `Estimated from the Texas average (${usd(ins.state_avg_annual)} at ` +
@@ -214,8 +294,8 @@
     }
 
     const z = zones[0];
-    const m = Engine.monthly(z, input, MARKET);
-    const proj = Engine.project(z, input, MARKET, 10);
+    const m = Engine.monthly(z, input, mkt());
+    const proj = Engine.project(z, input, mkt(), 10);
 
     let html = '';
 
@@ -224,7 +304,7 @@
     for (const p of state.pinned) {
       const pz = ZONES.features.find((f) => f.properties.zone_id === p)?.properties;
       if (!pz) continue;
-      const pm = Engine.monthly(pz, input, MARKET);
+      const pm = Engine.monthly(pz, input, mkt());
       html += `<span class="pill">${esc(short(pz))} — <b>${usd(pm.total)}/mo</b>
         <button type="button" data-unpin="${pz.zone_id}" aria-label="Remove">×</button></span>`;
     }
@@ -400,6 +480,10 @@
     if (layer) layer.remove();
     buildLayer();
     populateDistricts();
+    // Overrides survive a data update, but are re-layered onto the new
+    // published values and the unedited fields refreshed to the new defaults.
+    applyOverrides();
+    syncAdvInputs();
     setVintage();
     refresh();
   }
@@ -602,13 +686,43 @@
       if (!assessedTouched) $('assessed').value = $('price').value;
     });
 
+    // Assumption fields are handled separately below - they must rebuild the
+    // effective market before anything recomputes.
     const labels = { down: 'downLbl', localPct: 'localLbl', dwellPct: 'dwellLbl' };
-    for (const el of document.querySelectorAll('aside input, aside select')) {
+    for (const el of document.querySelectorAll(
+      'aside input:not([data-adv]), aside select'
+    )) {
       el.addEventListener('input', () => {
         if (labels[el.id]) $(labels[el.id]).textContent = el.value + '%';
         refresh();
       });
     }
+
+    // Assumptions: an empty field or one matching the published default is not
+    // an override, so it drops out rather than being pinned to a stale number.
+    for (const el of document.querySelectorAll('[data-adv]')) {
+      el.addEventListener('input', () => {
+        const key = el.dataset.adv;
+        const raw = el.value.trim();
+        const val = Number(raw);
+        if (raw === '' || Number.isNaN(val) || val === publishedValue(key, MARKET)) {
+          delete overrides[key];
+        } else {
+          overrides[key] = val;
+        }
+        applyOverrides();
+        saveOverrides();
+        refresh();
+      });
+    }
+
+    $('advReset').addEventListener('click', () => {
+      overrides = {};
+      applyOverrides();
+      saveOverrides();
+      syncAdvInputs();
+      refresh();
+    });
 
     $('themeBtn').addEventListener('click', () => {
       document.documentElement.setAttribute('data-theme', isDark() ? 'light' : 'dark');
@@ -627,8 +741,11 @@
   }
 
   loadCached();     // prefer a previously downloaded update over what shipped
+  loadOverrides();
+  applyOverrides();
   initMap();
   initControls();
+  syncAdvInputs();
   refresh();
   // Quiet check on load: only surfaces if something newer actually exists.
   checkForUpdates(false);

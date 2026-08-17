@@ -5,7 +5,12 @@
     "Comptroller, the Census, and FRED. Edit this file, commit it, and the",
     "site picks it up on the next deploy - no Python or JavaScript to touch.",
     "Check these once a year, ideally each January after the legislature and",
-    "the insurance market have settled."
+    "the insurance market have settled.",
+    "",
+    "Every value here is also editable from the Assumptions panel in the app",
+    "sidebar. That path is per-browser and instant, good for testing a",
+    "scenario. This file is the shared source of truth: change it here and",
+    "everyone sees it."
   ],
 
   "mortgage_spreads": {

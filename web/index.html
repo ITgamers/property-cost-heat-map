@@ -141,6 +141,67 @@
       </div>
     </div>
 
+    <details class="group adv" id="advGroup">
+      <summary>Assumptions <span class="badge" id="advBadge" hidden>edited</span></summary>
+      <p class="hint">The figures no public feed publishes. These start at the
+        published defaults — change them to test a scenario or to correct one
+        that has moved. Saved in this browser only; nothing is sent anywhere.</p>
+
+      <h3>Exemptions</h3>
+      <div class="row">
+        <div class="field">
+          <label for="a_hs">School homestead ($)</label>
+          <input type="number" id="a_hs" data-adv="school_homestead" step="5000" min="0">
+        </div>
+        <div class="field">
+          <label for="a_sr">65+ / disabled extra ($)</label>
+          <input type="number" id="a_sr" data-adv="senior_extra" step="5000" min="0">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="a_sf">65+ flat, local ($)</label>
+          <input type="number" id="a_sf" data-adv="senior_flat" step="500" min="0">
+        </div>
+        <div class="field">
+          <label for="a_cap">Appraisal cap (%/yr)</label>
+          <input type="number" id="a_cap" data-adv="cap_pct" step="1" min="0">
+        </div>
+      </div>
+
+      <h3>Insurance model</h3>
+      <div class="row">
+        <div class="field">
+          <label for="a_ins">State average ($/yr)</label>
+          <input type="number" id="a_ins" data-adv="ins_avg" step="50" min="0">
+        </div>
+        <div class="field">
+          <label for="a_dw">…at dwelling ($)</label>
+          <input type="number" id="a_dw" data-adv="ins_dwelling" step="10000" min="1">
+        </div>
+      </div>
+      <p class="hint">Scales the estimate for every zone. To pin one flat
+        premium instead, use the Insurance field above.</p>
+
+      <h3>Rate spreads vs. 30-year</h3>
+      <div class="row">
+        <div class="field">
+          <label for="a_s15">15-year</label>
+          <input type="number" id="a_s15" data-adv="spread_15yr" step="0.05">
+        </div>
+        <div class="field">
+          <label for="a_fha">FHA</label>
+          <input type="number" id="a_fha" data-adv="spread_fha" step="0.05">
+        </div>
+        <div class="field">
+          <label for="a_va">VA</label>
+          <input type="number" id="a_va" data-adv="spread_va" step="0.05">
+        </div>
+      </div>
+
+      <button class="ghost" type="button" id="advReset">Reset to published defaults</button>
+    </details>
+
     <div class="srcs" id="srcs"></div>
   </aside>
 
