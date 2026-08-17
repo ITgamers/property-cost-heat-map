@@ -8,9 +8,11 @@
 (function () {
   'use strict';
 
-  const MARKET = window.MARKET;
-  const ZONES = window.ZONES;
+  // Reassignable: a successful update swaps both wholesale (see applyData).
+  let MARKET = window.MARKET;
+  let ZONES = window.ZONES;
   const $ = (id) => document.getElementById(id);
+  const CACHE_KEY = 'pchm.data.v1';
 
   // Sequential blue, steps 100 -> 700. Index 0 is always the lowest bin.
   const RAMP_STEPS = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
@@ -37,7 +39,7 @@
     mode: 'monthly', selected: null, pinned: [],
     heatOn: true, heatOpacity: 0.78,
   };
-  let map, layer, tiles;
+  let map, layer, tiles, fitted = false;
   let breaks = [];
 
   const TILES = {
@@ -325,6 +327,103 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+  /* --- Live data updates --------------------------------------------------
+   * The browser cannot refresh from the original sources: neither FRED nor the
+   * Texas Comptroller sends an Access-Control-Allow-Origin header, so a direct
+   * fetch is blocked no matter what we do client-side. A scheduled GitHub
+   * Action re-runs the ETL and commits the output instead, and this fetches
+   * that - raw.githubusercontent.com serves `*`, readable from any origin
+   * including a page opened off the filesystem.
+   * ------------------------------------------------------------------------ */
+
+  const setStatus = (msg) => { $('updateStatus').textContent = msg || ''; };
+
+  function setVintage() {
+    $('vintage').textContent =
+      `${MARKET.tax_year} certified tax rates · ${ZONES.features.length} tax zones · ` +
+      `mortgage ${MARKET.mortgage.rate_30yr}% (${MARKET.mortgage.as_of}) · data ${MARKET.generated}`;
+  }
+
+  /** Swap in a new dataset and rebuild everything that depends on it. */
+  function applyData(market, zones) {
+    MARKET = market;
+    ZONES = zones;
+    state.selected = null;
+    state.pinned = [];
+    if (layer) layer.remove();
+    buildLayer();
+    populateDistricts();
+    setVintage();
+    refresh();
+  }
+
+  function cacheData(market, zones) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ market, zones }));
+    } catch (e) {
+      // Quota exceeded on a ~1.2 MB payload, or storage disabled entirely.
+      // Not fatal: the update still applied for this session.
+      console.warn('Could not cache updated data:', e.message);
+    }
+  }
+
+  /** Restore a previously downloaded update, if it is newer than what shipped. */
+  function loadCached() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return;
+      const { market, zones } = JSON.parse(raw);
+      if (market && zones && market.generated > MARKET.generated) {
+        MARKET = market;
+        ZONES = zones;
+      }
+    } catch (e) {
+      localStorage.removeItem(CACHE_KEY);
+    }
+  }
+
+  /**
+   * @param {boolean} manual  true when the user pressed the button, which makes
+   *                          the outcome verbose. The silent load-time check
+   *                          only speaks up when there is actually something new.
+   */
+  async function checkForUpdates(manual) {
+    const base = MARKET.update && MARKET.update.base_url;
+    if (!base) return manual && setStatus('No update source configured.');
+
+    const btn = $('updateBtn');
+    if (manual) { btn.disabled = true; setStatus('Checking…'); }
+    const bust = () => '?t=' + Date.now();
+
+    try {
+      // market.json is ~10 KB, so the check itself is cheap. Only pull the
+      // 1.2 MB zone geometry once we know there is a newer build.
+      const r = await fetch(`${base}/market.json${bust()}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const market = await r.json();
+
+      if (!(market.generated > MARKET.generated)) {
+        return manual && setStatus(`Up to date (${MARKET.generated}).`);
+      }
+
+      if (manual) setStatus('Newer data found — downloading…');
+      const z = await fetch(`${base}/zones.geojson${bust()}`, { cache: 'no-store' });
+      if (!z.ok) throw new Error('HTTP ' + z.status);
+      const zones = await z.json();
+      if (!zones.features || !zones.features.length) throw new Error('empty dataset');
+
+      applyData(market, zones);
+      cacheData(market, zones);
+      setStatus(`Updated to ${market.generated}.`);
+    } catch (e) {
+      // Offline, rate-limited, or the repo moved. The bundled data still works.
+      if (manual) setStatus(`Update failed (${e.message}) — using data from ${MARKET.generated}.`);
+      else console.warn('Update check failed:', e.message);
+    } finally {
+      if (manual) btn.disabled = false;
+    }
+  }
+
   /* --- Map setup ---------------------------------------------------------- */
 
   function initMap() {
@@ -334,6 +433,11 @@
       maxZoom: 19,
     }).addTo(map);
 
+    buildLayer();
+  }
+
+  /** (Re)create the choropleth layer from the current ZONES. */
+  function buildLayer() {
     layer = L.geoJSON(ZONES, {
       style: baseStyle,
       onEachFeature: (f, l) => {
@@ -354,14 +458,20 @@
       },
     }).addTo(map);
 
-    map.fitBounds(layer.getBounds(), { padding: [10, 10] });
+    // Frame the data on first build only. An update mid-session should leave
+    // wherever the user has panned to alone.
+    if (!fitted) {
+      map.fitBounds(layer.getBounds(), { padding: [10, 10] });
+      fitted = true;
+    }
   }
 
   /* --- Wiring ------------------------------------------------------------- */
 
-  function initControls() {
-    // Special district presets, richest county first.
+  /** Fill the special-district dropdown from the current MARKET. */
+  function populateDistricts() {
     const sel = $('mudSel');
+    sel.innerHTML = '<option value="0">None</option>';
     for (const [county, list] of Object.entries(MARKET.optional_districts || {})) {
       const og = document.createElement('optgroup');
       og.label = county + ' County';
@@ -374,7 +484,14 @@
       }
       sel.appendChild(og);
     }
-    sel.addEventListener('change', () => { $('mudRate').value = sel.value; refresh(); });
+  }
+
+  function initControls() {
+    populateDistricts();
+    $('mudSel').addEventListener('change', (e) => {
+      $('mudRate').value = e.target.value;
+      refresh();
+    });
 
     // Segmented controls
     for (const id of ['termSeg', 'typeSeg']) {
@@ -436,9 +553,8 @@
       refresh(); // zone strokes are resolved token values, so restyle them too
     });
 
-    $('vintage').textContent =
-      `${MARKET.tax_year} certified tax rates · ${ZONES.features.length} tax zones · ` +
-      `mortgage ${MARKET.mortgage.rate_30yr}% (${MARKET.mortgage.as_of}) · built ${MARKET.generated}`;
+    $('updateBtn').addEventListener('click', () => checkForUpdates(true));
+    setVintage();
 
     $('srcs').innerHTML = 'Sources: ' + MARKET.provenance
       .map((p) => `<a href="${p.url}" target="_blank" rel="noopener">${esc(p.source)}</a>`)
@@ -446,7 +562,10 @@
       '. Estimates only — confirm with the appraisal district and a lender before relying on them.';
   }
 
+  loadCached();     // prefer a previously downloaded update over what shipped
   initMap();
   initControls();
   refresh();
+  // Quiet check on load: only surfaces if something newer actually exists.
+  checkForUpdates(false);
 })();

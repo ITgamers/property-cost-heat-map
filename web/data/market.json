@@ -452,5 +452,9 @@
       "series": "MORTGAGE30US",
       "url": "https://fred.stlouisfed.org/series/MORTGAGE30US"
     }
-  ]
+  ],
+  "update": {
+    "base_url": "https://raw.githubusercontent.com/ITgamers/property-cost-heat-map/main/web/data",
+    "repo": "ITgamers/property-cost-heat-map"
+  }
 }

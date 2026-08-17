@@ -117,8 +117,55 @@ CORS policies.
 | Mortgage rate | [FRED `MORTGAGE30US`](https://fred.stlouisfed.org/series/MORTGAGE30US) — Freddie Mac PMMS | Weekly (Thursdays) |
 | Insurance | Modelled — see below | — |
 
-Re-run `python data/build_data.py --refresh` to pull fresh data. Rates are
-certified in September/October, so an annual refresh is enough.
+## Keeping data current
+
+**In the app: press "Update data."** No code, no Python, no terminal. It pulls
+the newest published dataset and swaps it in live — the map, the rate stack, the
+mortgage rate and the special-district list all refresh in place. The result is
+cached, so it survives a reload. If the network is down the button says so and
+the bundled data keeps working.
+
+The page also checks quietly on load and only speaks up if something newer
+exists.
+
+### Why it can't fetch the original sources directly
+
+A browser is blocked from reading a response unless the server opts in with an
+`Access-Control-Allow-Origin` header. Measured:
+
+| Source | Sends CORS header? |
+|---|---|
+| FRED (mortgage rate) | ❌ none |
+| Texas Comptroller (tax rates) | ❌ none |
+| Census TIGERweb | ✅ reflects origin |
+| `raw.githubusercontent.com` | ✅ `*` |
+
+So the two sources that matter most are unreachable from a page, and no amount
+of client-side code changes that. Instead, the
+[`Refresh data`](.github/workflows/update-data.yml) GitHub Action re-runs the
+ETL on a schedule — Thursdays, right after Freddie Mac publishes the weekly PMMS
+survey — runs the engine tests, and commits the output. The button reads that
+committed data, which GitHub serves with `Access-Control-Allow-Origin: *` and is
+therefore readable from any origin, including a page opened straight off the
+filesystem.
+
+You can also trigger a refresh by hand from the repo's **Actions** tab
+(*Refresh data → Run workflow*), which is the no-terminal way to force one.
+
+If you fork this, point the button at your own copy:
+
+```bash
+python data/build_data.py --refresh --repo your-user/your-fork
+```
+
+### Or rebuild locally
+
+```bash
+python data/build_data.py --refresh
+```
+
+Tax rates are certified in September/October, so an annual rebuild is enough for
+those; the mortgage rate moves weekly.
 
 ## Honesty about the insurance number
 

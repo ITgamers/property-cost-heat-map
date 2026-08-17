@@ -386,6 +386,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--year", default="2025", help="tax year to pull (default 2025)")
     ap.add_argument("--refresh", action="store_true", help="re-download sources")
+    ap.add_argument(
+        "--repo",
+        default="ITgamers/property-cost-heat-map",
+        help="GitHub repo the app pulls refreshed data from (owner/name). "
+             "Change this if you fork.",
+    )
     args = ap.parse_args()
 
     OUT.mkdir(parents=True, exist_ok=True)
@@ -545,6 +551,16 @@ def main() -> int:
         },
         "optional_districts": optional_by_county,
         "provenance": provenance,
+        # Where the in-app "Update data" button looks for fresher output.
+        # Neither FRED nor the Comptroller sends CORS headers, so a browser
+        # cannot refresh from them directly. A scheduled GitHub Action re-runs
+        # this script and commits the result; raw.githubusercontent.com serves
+        # it with Access-Control-Allow-Origin: *, which any origin can read -
+        # including a page opened straight off the filesystem.
+        "update": {
+            "base_url": f"https://raw.githubusercontent.com/{args.repo}/main/web/data",
+            "repo": args.repo,
+        },
     }
     write_pair("market", market, "MARKET")
     log("wrote market.json")

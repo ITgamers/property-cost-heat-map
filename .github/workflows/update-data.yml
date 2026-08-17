@@ -1,0 +1,50 @@
+name: Refresh data
+
+# Rebuilds the baked datasets from their upstream sources and commits the
+# result, so the app's in-page "Update data" button has something fresher to
+# pull. Neither FRED nor the Texas Comptroller sends CORS headers, so the
+# browser cannot reach them directly - this job is what stands in for that.
+on:
+  schedule:
+    # Thursdays 15:00 UTC. Freddie Mac publishes the PMMS mortgage survey
+    # each Thursday morning US time, so this picks up the new rate same day.
+    - cron: '0 15 * * 4'
+  workflow_dispatch:        # lets you refresh on demand from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: pip install --quiet requests openpyxl shapely
+
+      - name: Rebuild datasets
+        run: python data/build_data.py --refresh
+
+      - name: Verify the engine still agrees with hand-computed figures
+        run: node data/test_engine.js
+
+      - name: Commit refreshed data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/data
+          if git diff --staged --quiet; then
+            echo "No change in upstream data."
+          else
+            git commit -m "Refresh data ($(date -u +%Y-%m-%d))"
+            git push
+          fi
