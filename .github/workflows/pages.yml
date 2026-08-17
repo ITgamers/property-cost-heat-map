@@ -1,0 +1,45 @@
+name: Deploy site
+
+# Publishes web/ to GitHub Pages so the map can be opened from a URL with
+# nothing to download. web/ is neither the repo root nor /docs, so branch-based
+# Pages cannot serve it directly - this uploads just that directory instead.
+on:
+  push:
+    branches: [main]
+  # A data refresh commits new files; redeploy so the bundled copy matches.
+  # (Pushes made with GITHUB_TOKEN do not themselves retrigger workflows, hence
+  # the explicit hook rather than relying on the push event above.)
+  workflow_run:
+    workflows: ["Refresh data"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; let a newer one supersede a queued older one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/configure-pages@v5
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: web
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
