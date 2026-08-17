@@ -1,0 +1,13 @@
+# Cached source downloads — re-fetched by data/build_data.py --refresh
+data/raw/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor / tooling
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

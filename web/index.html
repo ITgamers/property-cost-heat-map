@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Property Cost Heat Map — San Antonio</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="bar">
+    <h1>Property Cost Heat Map</h1>
+    <span class="vintage" id="vintage">loading…</span>
+    <span class="spacer"></span>
+    <button class="ghost" id="themeBtn" type="button">Theme</button>
+  </header>
+
+  <aside>
+    <div class="group">
+      <h2>The home</h2>
+      <div class="field">
+        <label for="price">Purchase price</label>
+        <input type="number" id="price" value="400000" min="0" step="5000">
+      </div>
+      <div class="field">
+        <label for="assessed">Appraised value (taxed on this)</label>
+        <input type="number" id="assessed" value="400000" min="0" step="5000">
+        <div class="hint">Appraisals often lag the market — then reset after a
+          sale. Setting this below your price shows year one only.</div>
+      </div>
+      <div class="field">
+        <label for="hoa">HOA dues ($/month)</label>
+        <input type="number" id="hoa" value="0" min="0" step="10">
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Financing</h2>
+      <div class="field">
+        <label for="down">Down payment — <b id="downLbl">20%</b></label>
+        <input type="range" id="down" min="0" max="50" value="20" step="1">
+      </div>
+      <div class="field">
+        <label>Loan term</label>
+        <div class="seg" id="termSeg">
+          <button type="button" data-v="30" aria-pressed="true">30-year</button>
+          <button type="button" data-v="15" aria-pressed="false">15-year</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Loan type</label>
+        <div class="seg" id="typeSeg">
+          <button type="button" data-v="conventional" aria-pressed="true">Conv.</button>
+          <button type="button" data-v="fha" aria-pressed="false">FHA</button>
+          <button type="button" data-v="va" aria-pressed="false">VA</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="rate">Interest rate %</label>
+          <input type="number" id="rate" step="0.01" placeholder="auto">
+        </div>
+        <div class="field">
+          <label for="pmi">PMI %/yr</label>
+          <input type="number" id="pmi" value="0.5" step="0.05" min="0">
+        </div>
+      </div>
+      <div class="hint" id="rateHint"></div>
+    </div>
+
+    <div class="group">
+      <h2>Exemptions</h2>
+      <label class="check">
+        <input type="checkbox" id="homestead" checked>
+        <span>Homestead exemption
+          <span class="hint">$140,000 off school-district taxable value (2026).
+            Must be filed by April 30.</span></span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="senior">
+        <span>Age 65+ or disabled
+          <span class="hint">Adds $60,000 to the school exemption.</span></span>
+      </label>
+      <div class="field">
+        <label for="localPct">Local optional exemption — <b id="localLbl">20%</b></label>
+        <input type="range" id="localPct" min="0" max="20" value="20" step="1">
+        <div class="hint">Bexar County and the City of San Antonio each grant the
+          maximum 20%. Other jurisdictions vary — lower this to check them.</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Special districts</h2>
+      <div class="field">
+        <label for="mudSel">MUD / PID / WCID / ESD</label>
+        <select id="mudSel"><option value="0">None</option></select>
+        <div class="hint">Parcel-level, so it can’t be drawn on the map — pick it
+          here if the listing mentions one.</div>
+      </div>
+      <div class="field">
+        <label for="mudRate">…or enter a rate (per $100)</label>
+        <input type="number" id="mudRate" value="0" step="0.01" min="0">
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Insurance</h2>
+      <div class="field">
+        <label for="insOverride">Annual premium ($)</label>
+        <input type="number" id="insOverride" placeholder="auto — estimated" min="0" step="50">
+        <div class="hint" id="insHint"></div>
+      </div>
+      <div class="field">
+        <label for="dwellPct">Dwelling coverage — <b id="dwellLbl">85%</b> of price</label>
+        <input type="range" id="dwellPct" min="40" max="120" value="85" step="5">
+        <div class="hint">Land isn’t insured, so coverage is normally below price.</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Affordability &amp; projection</h2>
+      <div class="field">
+        <label for="budget">Monthly budget ($)</label>
+        <input type="number" id="budget" value="3200" min="0" step="100">
+        <div class="hint">Drives the Affordability map mode.</div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="appr">Appreciation %/yr</label>
+          <input type="number" id="appr" value="3" step="0.5">
+        </div>
+        <div class="field">
+          <label for="insInf">Insurance infl. %/yr</label>
+          <input type="number" id="insInf" value="8" step="0.5">
+        </div>
+      </div>
+    </div>
+
+    <div class="srcs" id="srcs"></div>
+  </aside>
+
+  <main>
+    <div class="mapwrap">
+      <div id="map"></div>
+      <div class="maptools" role="group" aria-label="Map metric">
+        <button type="button" data-mode="monthly" aria-pressed="true">Total monthly</button>
+        <button type="button" data-mode="rate" aria-pressed="false">Effective tax rate</button>
+        <button type="button" data-mode="afford" aria-pressed="false">Affordability</button>
+        <span class="div" aria-hidden="true"></span>
+        <button type="button" id="heatBtn" aria-pressed="true"
+                title="Show or hide the shading (H)">Heat map</button>
+        <input type="range" id="heatOpacity" min="5" max="100" value="78" step="1"
+               aria-label="Heat map opacity" title="Heat map opacity">
+      </div>
+      <div class="legend">
+        <h3 id="legendTitle">Total monthly payment</h3>
+        <div class="scale" id="legendScale"></div>
+        <div class="ends"><span id="legLo"></span><span id="legHi"></span></div>
+      </div>
+    </div>
+
+    <section class="detail" id="detail">
+      <div class="empty">Click any area on the map to see a full cost breakdown.</div>
+    </section>
+  </main>
+
+</div>
+
+<script src="vendor/leaflet.js"></script>
+<script src="data/zones.js"></script>
+<script src="data/market.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

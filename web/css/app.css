@@ -1,0 +1,316 @@
+/* ---------------------------------------------------------------------------
+   Property Cost Heat Map - San Antonio
+   Palette roles follow the validated reference instance: sequential blue for
+   the choropleth (magnitude), categorical slots 1-5 for the tax stack.
+   Dark mode is a selected set of steps, not an inversion.
+--------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --page: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+
+  /* categorical - tax stack */
+  --c1: #2a78d6;  /* school district */
+  --c2: #eb6834;  /* city */
+  --c3: #1baf7a;  /* county */
+  --c4: #eda100;  /* county-wide districts */
+  --c5: #e87ba4;  /* opt-in special district */
+
+  /* status */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+
+  /* sequential blue 100 -> 700 */
+  --s100: #cde2fb; --s200: #9ec5f4; --s300: #6da7ec; --s400: #3987e5;
+  --s500: #256abf; --s600: #184f95; --s700: #0d366b;
+
+  --radius: 8px;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1: #1a1a19;
+  --page: #0d0d0d;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --baseline: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--page);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* --- Layout --------------------------------------------------------------- */
+
+.app {
+  display: grid;
+  grid-template-columns: 330px 1fr;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+}
+
+header.bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 10px 18px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+header.bar h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+header.bar .vintage { color: var(--muted); font-size: 12px; }
+header.bar .spacer { flex: 1; }
+
+aside {
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 14px 16px 40px;
+}
+
+main {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+#map { width: 100%; height: 100%; background: var(--page); }
+
+.detail {
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 14px 18px 20px;
+}
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
+  aside { border-right: none; border-bottom: 1px solid var(--border); max-height: 40vh; }
+  main { min-height: 60vh; }
+}
+
+/* --- Controls ------------------------------------------------------------- */
+
+.group { margin-bottom: 18px; }
+.group > h2 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  margin: 0 0 8px;
+  font-weight: 650;
+}
+
+.field { margin-bottom: 10px; }
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 3px;
+}
+/* Standalone, not scoped to .field - several hints sit directly in a .group. */
+.hint { color: var(--muted); font-size: 11px; margin-top: 3px; line-height: 1.4; }
+
+input[type="number"], input[type="text"], select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--baseline);
+  border-radius: 6px;
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+input:focus, select:focus { outline: 2px solid var(--c1); outline-offset: -1px; }
+
+input[type="range"] { width: 100%; accent-color: var(--c1); }
+
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; min-width: 0; }
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.check input { margin-top: 2px; accent-color: var(--c1); flex: none; }
+.check span { font-size: 13px; }
+.check .hint { display: block; }
+
+.seg {
+  display: flex;
+  border: 1px solid var(--baseline);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.seg button {
+  flex: 1;
+  padding: 6px 4px;
+  border: 0;
+  background: var(--page);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--baseline); }
+.seg button[aria-pressed="true"] { background: var(--c1); color: #fff; font-weight: 600; }
+
+/* --- Map chrome ----------------------------------------------------------- */
+
+.maptools {
+  position: absolute;
+  z-index: 500;
+  top: 10px; left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  background: var(--surface-1);
+  padding: 5px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+}
+.maptools button {
+  border: 0; background: transparent; color: var(--text-secondary);
+  padding: 6px 12px; border-radius: 6px; cursor: pointer;
+  font-family: var(--font); font-size: 12px; white-space: nowrap;
+}
+.maptools button[aria-pressed="true"] { background: var(--c1); color: #fff; font-weight: 600; }
+.maptools .div { width: 1px; background: var(--border); margin: 3px 3px; flex: none; }
+.maptools input[type="range"] { width: 80px; accent-color: var(--c1); margin: 0 6px 0 2px; }
+/* Off state stays legible as a control rather than reading like a disabled one. */
+.maptools button#heatBtn[aria-pressed="false"] {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.legend {
+  position: absolute;
+  z-index: 500;
+  bottom: 22px; right: 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+  max-width: 210px;
+}
+.legend h3 { margin: 0 0 6px; font-size: 11px; color: var(--text-secondary); font-weight: 600; }
+.legend .scale { display: flex; height: 10px; border-radius: 3px; overflow: hidden; }
+.legend .scale i { flex: 1; }
+.legend .ends {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--muted);
+  margin-top: 4px; font-variant-numeric: tabular-nums;
+}
+.mapwrap { position: relative; min-height: 0; }
+
+/* With the shading toggled off, zone fills are fully transparent. SVG's default
+   hit-testing (visiblePainted) ignores an unpainted fill, which would make the
+   zones unclickable exactly when you want to click through to a road and back.
+   `all` hit-tests regardless of paint. Selector matches Leaflet's own so it
+   wins on cascade order rather than !important. */
+.leaflet-pane > svg path.leaflet-interactive { pointer-events: all; }
+
+/* --- Detail panel --------------------------------------------------------- */
+
+.detail h2 { font-size: 15px; margin: 0 0 2px; font-weight: 650; }
+.detail .sub { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+
+.tiles { display: flex; flex-wrap: wrap; gap: 22px; margin-bottom: 16px; }
+.tile .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.tile .v { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; }
+.tile .s { font-size: 11px; color: var(--text-secondary); }
+
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 22px; }
+.cols h3 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); margin: 0 0 8px; font-weight: 650;
+}
+
+/* stacked bar - 2px surface gap between segments per mark spec */
+.stack { display: flex; height: 26px; border-radius: 4px; overflow: hidden; gap: 2px; margin-bottom: 10px; }
+.stack i { display: block; }
+
+table.data { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.data th, table.data td { text-align: right; padding: 4px 6px; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data thead th {
+  color: var(--muted); font-weight: 600; font-size: 11px;
+  border-bottom: 1px solid var(--grid); text-transform: uppercase; letter-spacing: .05em;
+}
+table.data tbody tr + tr td { border-top: 1px solid var(--grid); }
+table.data td.num, table.data th.num { font-variant-numeric: tabular-nums; }
+table.data tfoot td { border-top: 2px solid var(--baseline); font-weight: 650; }
+.swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+
+.note {
+  border-left: 3px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  padding: 8px 11px; border-radius: 0 6px 6px 0;
+  font-size: 12px; margin: 10px 0; color: var(--text-secondary);
+}
+.note.crit { border-left-color: var(--critical); background: color-mix(in srgb, var(--critical) 8%, transparent); }
+.note strong { color: var(--text-primary); }
+
+.pinbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--border); border-radius: 99px;
+  padding: 3px 5px 3px 10px; font-size: 12px; background: var(--page);
+}
+.pill button { border: 0; background: transparent; cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1; padding: 0 3px; }
+.pill button:hover { color: var(--critical); }
+
+button.ghost {
+  border: 1px solid var(--baseline); background: var(--page); color: var(--text-primary);
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: var(--font); font-size: 12px;
+}
+button.ghost:hover { border-color: var(--c1); color: var(--c1); }
+
+.empty { color: var(--muted); padding: 26px 0; text-align: center; font-size: 13px; }
+.srcs { font-size: 11px; color: var(--muted); margin-top: 14px; line-height: 1.7; }
+.srcs a { color: var(--muted); }
