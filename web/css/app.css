@@ -255,6 +255,11 @@ input[type="range"] { width: 100%; accent-color: var(--c1); }
    wins on cascade order rather than !important. */
 .leaflet-pane > svg path.leaflet-interactive { pointer-events: all; }
 
+/* The OSM fallback basemap ships light-only; approximate a dark one so the
+   degraded state still suits the dark theme. Applied to the tile pane only,
+   never to the data layer. */
+.leaflet-tile-pane.fallback-dark { filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95); }
+
 /* --- Detail panel --------------------------------------------------------- */
 
 .detail h2 { font-size: 15px; margin: 0 0 2px; font-weight: 650; }

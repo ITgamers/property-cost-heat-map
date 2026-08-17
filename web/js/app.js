@@ -46,6 +46,18 @@
     light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
     dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
   };
+  // CARTO's free tier carries no SLA and throttles under load. Falling back to
+  // OSM standard tiles means a rate-limited basemap degrades to a different
+  // basemap rather than to a blank background. OSM has no dark variant, so the
+  // tile pane gets filtered instead when the fallback runs in dark mode.
+  const FALLBACK_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  let tileErrors = 0, usingFallback = false;
+  const tileUrl = () => (usingFallback ? FALLBACK_TILES : TILES[isDark() ? 'dark' : 'light']);
+
+  function syncTilePane() {
+    const pane = document.querySelector('.leaflet-tile-pane');
+    if (pane) pane.classList.toggle('fallback-dark', usingFallback && isDark());
+  }
   const isDark = () => {
     const t = document.documentElement.getAttribute('data-theme');
     return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
@@ -428,10 +440,19 @@
 
   function initMap() {
     map = L.map('map', { zoomControl: true }).setView([29.47, -98.52], 10);
-    tiles = L.tileLayer(TILES[isDark() ? 'dark' : 'light'], {
+    tiles = L.tileLayer(tileUrl(), {
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 19,
     }).addTo(map);
+
+    // A few misses are normal while panning; a sustained run means the tile
+    // host is refusing us, so switch source once and stay there.
+    tiles.on('tileerror', () => {
+      if (usingFallback || ++tileErrors < 6) return;
+      usingFallback = true;
+      tiles.setUrl(FALLBACK_TILES);
+      syncTilePane();
+    });
 
     buildLayer();
   }
@@ -549,7 +570,8 @@
 
     $('themeBtn').addEventListener('click', () => {
       document.documentElement.setAttribute('data-theme', isDark() ? 'light' : 'dark');
-      tiles.setUrl(TILES[isDark() ? 'dark' : 'light']);
+      tiles.setUrl(tileUrl());
+      syncTilePane();
       refresh(); // zone strokes are resolved token values, so restyle them too
     });
 

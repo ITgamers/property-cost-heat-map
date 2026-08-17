@@ -1,5 +1,7 @@
 # Property Cost Heat Map — San Antonio
 
+### ▶ **[Open the map](https://itgamers.github.io/property-cost-heat-map/)**
+
 An interactive map of what it actually costs to own a home across the San
 Antonio metro, shaded by **school district × city × county** — the real unit of
 property-tax geography in Texas.
@@ -7,7 +9,12 @@ property-tax geography in Texas.
 Adjust home value, down payment, loan term and type, interest rate, exemptions,
 HOA dues and special-district levies, and every zone recomputes instantly.
 
-## Quick start
+Nothing to install. The hosted version keeps its own data current — see
+[Keeping data current](#keeping-data-current).
+
+## Running it locally
+
+Only needed if you want to modify it; the hosted link above is the same app.
 
 ```bash
 # 1. Build the data (needs network; takes ~2 minutes)
