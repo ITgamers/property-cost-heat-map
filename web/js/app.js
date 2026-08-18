@@ -656,6 +656,177 @@
     }
   }
 
+  /* --- Address search -----------------------------------------------------
+   * The Census geocoder is authoritative for US addresses and is built on the
+   * same TIGER data as these boundaries, so a matched point lands consistently
+   * inside the right polygon. It sends no CORS header, but it does support
+   * JSONP, which sidesteps the restriction without needing a proxy.
+   * ---------------------------------------------------------------------- */
+
+  const CENSUS_GEOCODER =
+    'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress';
+  const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
+  let addrMarker = null;
+
+  /**
+   * JSONP loader. This executes script from the remote host, so it is used only
+   * against the Census Bureau's own domain, never user-supplied URLs.
+   */
+  function jsonp(buildUrl, timeoutMs = 15000) {
+    return new Promise((resolve, reject) => {
+      const cb = '__geo' + Math.random().toString(36).slice(2);
+      const script = document.createElement('script');
+      let settled = false;
+      const cleanup = () => {
+        delete window[cb];
+        script.remove();
+        clearTimeout(timer);
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true; cleanup(); reject(new Error('timed out'));
+      }, timeoutMs);
+      window[cb] = (data) => { settled = true; cleanup(); resolve(data); };
+      script.onerror = () => {
+        if (settled) return;
+        settled = true; cleanup(); reject(new Error('network error'));
+      };
+      script.src = buildUrl(cb);
+      document.head.appendChild(script);
+    });
+  }
+
+  async function geocode(query) {
+    // 1. Census — exact street addresses, and the same lineage as our polygons.
+    try {
+      const data = await jsonp((cb) =>
+        `${CENSUS_GEOCODER}?address=${encodeURIComponent(query)}` +
+        `&benchmark=Public_AR_Current&format=jsonp&callback=${cb}`);
+      const hit = data?.result?.addressMatches?.[0];
+      if (hit) {
+        return {
+          lat: hit.coordinates.y, lon: hit.coordinates.x,
+          label: hit.matchedAddress, source: 'Census',
+        };
+      }
+    } catch (e) { /* fall through to the looser matcher */ }
+
+    // 2. Nominatim — handles neighbourhoods and partial input the Census
+    //    address matcher rejects. Courtesy use only; it is rate limited.
+    const url = `${NOMINATIM}?q=${encodeURIComponent(query)}` +
+      `&format=json&limit=1&countrycodes=us`;
+    const r = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = await r.json();
+    if (!rows.length) return null;
+    return {
+      lat: +rows[0].lat, lon: +rows[0].lon,
+      label: rows[0].display_name, source: 'OpenStreetMap',
+    };
+  }
+
+  /* --- Point in polygon ---------------------------------------------------
+   * Ray casting. Handles MultiPolygon and interior rings, because several
+   * zones are genuinely donut-shaped — an unincorporated remainder wrapping a
+   * city, for instance — and ignoring holes would match the wrong zone.
+   * ---------------------------------------------------------------------- */
+
+  function pointInRing(x, y, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1];
+      const xj = ring[j][0], yj = ring[j][1];
+      if ((yi > y) !== (yj > y) &&
+          x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+
+  function pointInPolygon(x, y, rings) {
+    if (!rings.length || !pointInRing(x, y, rings[0])) return false;
+    for (let i = 1; i < rings.length; i++) {
+      if (pointInRing(x, y, rings[i])) return false;   // inside a hole
+    }
+    return true;
+  }
+
+  /**
+   * Test one geometry. GeometryCollection is handled because older cached
+   * datasets contain them — the build now strips non-areal parts, but a
+   * browser holding a previous download must still resolve addresses.
+   */
+  function geometryContains(g, lon, lat) {
+    if (!g) return false;
+    if (g.type === 'Polygon') return pointInPolygon(lon, lat, g.coordinates);
+    if (g.type === 'MultiPolygon') {
+      return g.coordinates.some((poly) => pointInPolygon(lon, lat, poly));
+    }
+    if (g.type === 'GeometryCollection') {
+      return (g.geometries || []).some((sub) => geometryContains(sub, lon, lat));
+    }
+    return false;   // lines and points enclose nothing
+  }
+
+  function zoneAt(lon, lat) {
+    return ZONES.features.find((f) => geometryContains(f.geometry, lon, lat)) || null;
+  }
+
+  function clearAddress() {
+    if (addrMarker) { addrMarker.remove(); addrMarker = null; }
+    $('addrClear').hidden = true;
+    $('addr').value = '';
+    $('addrStatus').textContent =
+      'Finds the address and selects the tax zone it sits in, so the costs below are for that specific home.';
+  }
+
+  async function findAddress() {
+    const q = $('addr').value.trim();
+    if (!q) return;
+    const btn = $('addrBtn');
+    btn.disabled = true;
+    $('addrStatus').textContent = 'Searching…';
+    try {
+      const hit = await geocode(q);
+      if (!hit) {
+        $('addrStatus').textContent =
+          'No match. Try including the city and state, or a nearby intersection.';
+        return;
+      }
+
+      if (addrMarker) addrMarker.remove();
+      // circleMarker rather than L.marker: the default icon needs image files
+      // we deliberately do not vendor, and would render broken.
+      addrMarker = L.circleMarker([hit.lat, hit.lon], {
+        radius: 8, weight: 3,
+        color: cssVar('--critical'), fillColor: cssVar('--surface-1'), fillOpacity: 1,
+      }).addTo(map).bindPopup(esc(hit.label));
+      $('addrClear').hidden = false;
+
+      const feature = zoneAt(hit.lon, hit.lat);
+      if (feature) {
+        state.selected = feature.properties.zone_id;
+        map.setView([hit.lat, hit.lon], 13);
+        refresh();
+        addrMarker.openPopup();
+        $('addrStatus').textContent =
+          `${hit.label} — ${short(feature.properties)}. Costs below are for this address.`;
+        $('detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else {
+        // Drop the previous selection: leaving another zone's costs on screen
+        // under a pin somewhere else reads as though they applied to it.
+        state.selected = null;
+        map.setView([hit.lat, hit.lon], 11);
+        refresh();
+        $('addrStatus').textContent =
+          `${hit.label} — found, but outside the seven counties this map covers.`;
+      }
+    } catch (e) {
+      $('addrStatus').textContent = `Lookup failed (${e.message}). Check your connection.`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   /* --- Map setup ---------------------------------------------------------- */
 
   function initMap() {
@@ -841,6 +1012,12 @@
       tiles.setUrl(tileUrl());
       syncTilePane();
       refresh(); // zone strokes are resolved token values, so restyle them too
+    });
+
+    $('addrBtn').addEventListener('click', findAddress);
+    $('addrClear').addEventListener('click', clearAddress);
+    $('addr').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); findAddress(); }
     });
 
     $('updateBtn').addEventListener('click', () => checkForUpdates(true));

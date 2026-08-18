@@ -367,6 +367,11 @@ details.adv .badge {
 }
 details.adv button.ghost { margin-top: 12px; width: 100%; }
 
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
 .empty { color: var(--muted); padding: 26px 0; text-align: center; font-size: 13px; }
 .srcs { font-size: 11px; color: var(--muted); margin-top: 14px; line-height: 1.7; }
 .srcs a { color: var(--muted); }

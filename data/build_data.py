@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import requests
-from shapely.geometry import shape, mapping
+from shapely.geometry import shape, mapping, Polygon
 from shapely.ops import unary_union
 from shapely.validation import make_valid
 
@@ -323,11 +323,29 @@ def parse_rates(path: Path, kind_hint: str | None = None) -> list[TaxUnit]:
 # Geometry
 # ---------------------------------------------------------------------------
 
+def polygonal(geom):
+    """
+    Keep only the areal parts of a geometry.
+
+    intersection() and difference() emit lines and points wherever boundaries
+    merely touch, yielding a GeometryCollection. Those fragments have no area,
+    render as degenerate zero-length SVG paths, and break point-in-polygon
+    tests in the browser, which reasonably only expect Polygon/MultiPolygon.
+    """
+    if geom.is_empty or geom.geom_type in ("Polygon", "MultiPolygon"):
+        return geom
+    parts = [
+        g for g in getattr(geom, "geoms", [])
+        if g.geom_type in ("Polygon", "MultiPolygon") and not g.is_empty
+    ]
+    return unary_union(parts) if parts else Polygon()
+
+
 def clean(geom):
-    """Repair self-intersections that TIGER polygons occasionally carry."""
+    """Repair self-intersections TIGER carries, then discard non-areal parts."""
     if not geom.is_valid:
         geom = make_valid(geom)
-    return geom
+    return polygonal(geom)
 
 
 def norm_isd(name: str) -> str:

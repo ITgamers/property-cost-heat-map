@@ -116,6 +116,23 @@ monthly payment and barely at all for the cash you bring.
 
 Click any zone for a full breakdown; pin up to three to compare side by side.
 
+## Address search
+
+Type an address into **Find an address** and the map pins it, works out which
+tax zone contains it, and selects that zone — so every figure below is for that
+specific home rather than a neighbourhood guess.
+
+Geocoding runs against the **Census Bureau geocoder**, which is authoritative
+for US addresses and built on the same TIGER data as these boundaries, so a
+matched point lands consistently inside the right polygon. It sends no CORS
+header, but it supports JSONP, which avoids needing a proxy. Nominatim is the
+fallback for neighbourhood names and partial input that the strict address
+matcher rejects ("Stone Oak, San Antonio TX" resolves that way).
+
+An address outside the seven counties is pinned and labelled as out of coverage,
+and the previous zone is deselected so its costs are never left on screen under
+a pin somewhere else.
+
 **Seeing the map underneath.** The **Heat map** button (or the `H` key) toggles
 the shading off so the roads and street names read clearly; the slider beside it
 sets partial opacity, which is usually the more useful setting — around 25% you
