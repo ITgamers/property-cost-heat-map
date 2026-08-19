@@ -161,6 +161,7 @@
       senior: $('senior').checked,
       localOptionalPct: (+$('localPct').value || 0) / 100,
       hoaMonthly: +$('hoa').value || 0,
+      bahMonthly: +$('bah').value || 0,
       specialRate: +$('mudRate').value || 0,
       specialName: $('mudSel').selectedOptions[0]?.dataset.name,
       vetExemptionAmount: +($('vetTier').selectedOptions[0]?.dataset.amount || 0),
@@ -190,13 +191,18 @@
   /** The value the choropleth encodes, per the active mode. */
   function metric(zoneProps, input) {
     if (state.mode === 'afford') {
-      return Engine.affordablePrice(zoneProps, input, mkt(), +$('budget').value || 0);
+      // BAH is money toward housing you receive either way, so the budget the
+      // payment has to fit inside is what you can pay *plus* the allowance.
+      const budget = (+$('budget').value || 0) + (input.bahMonthly || 0);
+      return Engine.affordablePrice(zoneProps, input, mkt(), budget);
     }
     if (state.mode === 'cash') {
       return Engine.cashToClose(zoneProps, input, mkt()).total;
     }
     const m = Engine.monthly(zoneProps, input, mkt());
-    return state.mode === 'rate' ? m.effectiveTaxRate : m.total;
+    if (state.mode === 'rate') return m.effectiveTaxRate;
+    if (state.mode === 'pocket') return m.outOfPocket;
+    return m.total;
   }
 
   /* --- Choropleth --------------------------------------------------------- */
@@ -223,6 +229,7 @@
 
   function refresh() {
     const input = readInputs();
+    guardMode(input);
     const values = ZONES.features.map((f) => {
       f.properties._v = metric(f.properties, input);
       return f.properties._v;
@@ -237,6 +244,7 @@
     updateLegend(Math.min(...values), Math.max(...values));
     renderDetail();
     syncLabels(input);
+    syncMilitary(input);
     syncHints(input);
   }
 
@@ -272,6 +280,9 @@
     if (state.mode === 'rate') return pct(v, 3);
     if (state.mode === 'afford') return usd(Math.round(v / 1000) * 1000);
     if (state.mode === 'cash') return usd(Math.round(v / 100) * 100);
+    if (state.mode === 'pocket') {
+      return v < 0 ? '+' + usd(-v) + ' left' : usd(v);
+    }
     return usd(v);
   }
 
@@ -283,6 +294,7 @@
       rate: 'Effective tax rate',
       afford: 'Affordable home price',
       cash: 'Cash needed at closing',
+      pocket: 'Out of pocket after BAH',
     }[state.mode];
     $('legLo').textContent = fmtMetric(lo);
     $('legHi').textContent = fmtMetric(hi);
@@ -300,6 +312,28 @@
     $('localLbl').textContent = `${$('localPct').value}%`;
     $('dwellLbl').textContent =
       `${$('dwellPct').value}% — ${usd(input.price * input.dwellingPct)}`;
+  }
+
+  /**
+   * BAH-dependent chrome. The out-of-pocket map mode is meaningless without an
+   * allowance, so the button only exists once one is entered — and if the BAH
+   * is cleared while that mode is active, fall back rather than showing a map
+   * identical to Total monthly.
+   */
+  function guardMode(input) {
+    if ((input.bahMonthly || 0) > 0 || state.mode !== 'pocket') return;
+    state.mode = 'monthly';
+    document.querySelectorAll('.maptools button[data-mode]').forEach((b) =>
+      b.setAttribute('aria-pressed', String(b.dataset.mode === 'monthly')));
+  }
+
+  function syncMilitary(input) {
+    const bah = input.bahMonthly || 0;
+    $('pocketBtn').hidden = bah <= 0;
+    $('budgetQual').textContent = bah > 0 ? '— out of pocket, on top of BAH' : '';
+    $('bahHint').textContent = bah > 0
+      ? `${usd(bah)}/mo tax-free · ${usd(bah * 12)} a year toward housing.`
+      : '';
   }
 
   function syncHints(input) {
@@ -357,6 +391,13 @@
 
     // Headline tiles
     html += '<div class="tiles">' +
+      (m.bah > 0
+        ? tile('Out of pocket',
+               m.outOfPocket < 0 ? '+' + usd(-m.outOfPocket) : usd(m.outOfPocket),
+               m.outOfPocket < 0
+                 ? `BAH covers it — ${usd(-m.outOfPocket)}/mo left over`
+                 : `${usd(m.total)} total less ${usd(m.bah)} BAH`)
+        : '') +
       tile('Total monthly', usd(m.total), 'PITI + HOA + special districts') +
       tile('Property tax', usd(m.taxAnnual, 0) + '/yr', usd(m.taxAnnual / 12) + '/mo · effective ' + pct(m.effectiveTaxRate, 3)) +
       tile('Insurance', usd(m.insuranceAnnual, 0) + '/yr', usd(m.insuranceAnnual / 12) + '/mo · estimate') +

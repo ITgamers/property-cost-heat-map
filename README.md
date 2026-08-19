@@ -33,7 +33,7 @@ page loads the `.js` versions via `<script>` so `file://` CORS never bites.
 Verify the math at any time:
 
 ```bash
-node data/test_engine.js     # 24 assertions against hand-computed figures
+node data/test_engine.js     # 73 assertions against hand-computed figures
 ```
 
 ## Why school district, not county
@@ -58,7 +58,7 @@ exactly the variation you're trying to see.
 Across the seven-county metro the combined rate runs **1.1501%** (Fredericksburg
 ISD, unincorporated Kendall County) to **2.6434%** (Poteet ISD, City of Poteet).
 
-## Four map modes
+## Five map modes
 
 - **Total monthly** — full PITI + HOA + special districts, the number that hits
   your account.
@@ -67,6 +67,7 @@ ISD, unincorporated Kendall County) to **2.6434%** (Poteet ISD, City of Poteet).
 - **Affordability** — enter a monthly budget, see the home price it buys in each
   zone. At $3,200/month the metro spread is about **$413,000 → $463,000**.
 - **Cash to close** — the one-time cash the closing table actually needs.
+- **Out of pocket** — the payment less BAH. Appears once an allowance is entered.
 
 ## Cash to close
 
@@ -206,6 +207,25 @@ For a qualifying veteran this changes what the map is *for*: property tax stops
 being a reason to prefer one area over another, and insurance, price and schools
 decide it instead. It applies only to the residence homestead, so the app says
 so if the homestead box is unticked.
+
+**BAH.** Enter your Basic Allowance for Housing under *Military* and the app
+shows what you actually pay out of pocket, rather than the gross payment. BAH is
+a tax-free allowance paid regardless of what the home costs, so it offsets the
+payment dollar for dollar, and any surplus is yours to keep — a $340,000 home in
+a low-rate zone against a $2,400 allowance can land at **+$76/month left over**
+rather than a cost.
+
+Two things it changes beyond the headline number:
+
+- An **Out of pocket** map mode appears, shading by payment-less-allowance. It is
+  hidden while BAH is zero, since it would be identical to Total monthly.
+- The **Monthly budget** field in Affordability becomes out-of-pocket spending
+  *on top of* BAH, which is the way the question is actually asked. At $500/month
+  out of pocket, a $2,400 allowance moves what you can reach from about $71,000
+  to **$380,000**.
+
+Rates depend on rank, dependent status and duty ZIP; San Antonio is military
+housing area **TX240**. The field is manual — the app does not guess your rate.
 
 **Ten-year projection.** Year one flatters Texas. Appraisals compound against the
 homestead cap and insurance climbs faster than wages, so the app projects both.
@@ -368,7 +388,7 @@ in Texas it's too large a number to leave modelled.
 ```
 data/
   build_data.py      ETL — fetch, parse, intersect, emit
-  test_engine.js     24 assertions against hand-computed figures
+  test_engine.js     73 assertions against hand-computed figures
   raw/               cached downloads (gitignorable)
 web/
   index.html

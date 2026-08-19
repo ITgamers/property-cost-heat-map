@@ -266,6 +266,41 @@ ok('an exempt VA borrower at 0% down finances exactly the price',
    Engine.loanDetail(340000, { ...closingBase, downPct: 0, loanType: 'va', vaFeeExempt: true }, MARKET)
      .principal === 340000);
 
+console.log('\n=== BAH offset ===\n');
+const BAH = 2400;
+const noBah = Engine.monthly(zone, base, MARKET);
+const withBah = Engine.monthly(zone, { ...base, bahMonthly: BAH }, MARKET);
+
+eq('BAH does not change the payment itself', withBah.total, noBah.total, 0.01);
+eq('out of pocket = payment less BAH', withBah.outOfPocket, noBah.total - BAH, 0.01);
+eq('BAH is carried through for display', withBah.bah, BAH);
+ok('no BAH means out of pocket equals the payment',
+   Math.abs(noBah.outOfPocket - noBah.total) < 0.01);
+
+// A generous allowance against a cheap zone can exceed the payment; that
+// surplus is real money kept, so it must not be clamped at zero.
+const cheap = ZONES.features
+  .map((f) => f.properties)
+  .reduce((lo, z) => (z.total_rate < lo.total_rate ? z : lo));
+const rich = Engine.monthly(
+  cheap, { ...base, price: 200000, assessedValue: 200000, bahMonthly: 3200 }, MARKET);
+ok('a surplus stays negative rather than clamping to zero',
+   rich.outOfPocket < 0,
+   `${cheap.isd.slice(0, 28)}: $${rich.total.toFixed(0)}/mo vs $3,200 BAH ` +
+   `-> $${(-rich.outOfPocket).toFixed(0)} kept`);
+
+// Affordability: the allowance raises the price a given out-of-pocket reaches.
+const outOfPocketBudget = 500;
+const affNoBah = Engine.affordablePrice(zone, base, MARKET, outOfPocketBudget);
+const affBah = Engine.affordablePrice(zone, base, MARKET, outOfPocketBudget + BAH);
+ok('BAH raises affordable price for the same out-of-pocket',
+   affBah > affNoBah,
+   `$${Math.round(affNoBah).toLocaleString()} -> $${Math.round(affBah).toLocaleString()}`);
+const backCheck = Engine.monthly(
+  zone, { ...base, price: affBah, assessedValue: affBah, bahMonthly: BAH }, MARKET);
+eq('that price lands on the intended out-of-pocket',
+   backCheck.outOfPocket, outOfPocketBudget, 1);
+
 console.log(`
 ${pass} passed, ${fail} failed
 `);

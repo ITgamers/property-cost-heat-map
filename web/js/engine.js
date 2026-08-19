@@ -258,8 +258,14 @@
       hoa: input.hoaMonthly || 0,
     };
     const total = Object.values(parts).reduce((s, v) => s + v, 0);
+    // BAH is a tax-free housing allowance paid regardless of what the home
+    // actually costs, so it offsets the payment dollar for dollar. A negative
+    // out-of-pocket is real: the allowance exceeds the payment and the
+    // difference is the service member's to keep.
+    const bah = Math.max(0, input.bahMonthly || 0);
     return {
-      total, parts, loan,
+      total, parts, loan, bah,
+      outOfPocket: total - bah,
       taxAnnual: tax.total,
       taxLines: tax.lines,
       insuranceAnnual: ins,
